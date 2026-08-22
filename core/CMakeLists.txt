@@ -8,7 +8,8 @@ target_link_libraries(test_ball PRIVATE zetaforge_core)
 add_test(NAME ball COMMAND test_ball)
 
 add_executable(test_ball_oracle tests/test_ball_oracle.cpp)
-target_link_libraries(test_ball_oracle PRIVATE zetaforge_core PkgConfig::FLINT)
+target_include_directories(test_ball_oracle PRIVATE ${FLINT_INCLUDE_DIR})
+target_link_libraries(test_ball_oracle PRIVATE zetaforge_core ${FLINT_LIBRARY})
 add_test(NAME ball_oracle COMMAND test_ball_oracle)
 
 add_executable(test_ffix tests/test_ffix.cpp)
@@ -22,7 +23,8 @@ add_test(NAME ntt COMMAND test_ntt)
 # Determinism probe: not a pass/fail test on its own; CI extracts
 # DETERMINISM_HASH from both build configurations and requires equality.
 add_executable(test_determinism tests/test_determinism.cpp)
-target_link_libraries(test_determinism PRIVATE zetaforge_core PkgConfig::FLINT)
+target_include_directories(test_determinism PRIVATE ${FLINT_INCLUDE_DIR})
+target_link_libraries(test_determinism PRIVATE zetaforge_core ${FLINT_LIBRARY})
 add_test(NAME determinism_selfconsistency
          COMMAND test_determinism)
 
