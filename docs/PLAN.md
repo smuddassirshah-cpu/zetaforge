@@ -66,7 +66,7 @@ ground-truth validation against Platt-Trudgian's certified results."
 ```
 zetaforge/
 ├── core/                [C++23]    ball arithmetic kernel
-│   ├── ball.hpp           centre(mpfr)+radius(double), directed rounding, precision-ladder escalation
+│   ├── ball.hpp           own implementation: centre(mpfr)+radius(double), directed rounding, precision-ladder escalation; Arb is oracle only (see DECISIONS)
 │   ├── ffix.hpp           fixed-point FFT-friendly type, tracked error inflation
 │   ├── ntt.hpp            number-theoretic transform convolution, O(n log n), exact
 │   └── theta.hpp          Riemann-Siegel theta(t), certified truncation bounds
