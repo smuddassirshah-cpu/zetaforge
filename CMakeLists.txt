@@ -37,5 +37,12 @@ if(ZETAFORGE_BUILD_CUDA AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/gpu/CMakeLists.tx
   add_subdirectory(gpu)
 endif()
 
+# Stage 2 dependencies, all named in docs/PLAN.md section 4. Arb is consumed
+# as merged into FLINT 3 (see DECISIONS.md).
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(MPFR REQUIRED IMPORTED_TARGET mpfr)
+pkg_check_modules(GMP REQUIRED IMPORTED_TARGET gmp)
+pkg_check_modules(FLINT REQUIRED IMPORTED_TARGET flint)
+
 enable_testing()
 add_subdirectory(core)
