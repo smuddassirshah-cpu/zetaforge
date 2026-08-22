@@ -8,7 +8,7 @@ Last updated: 2026-08-22
 |---|-------|--------|------|
 | 1 | Scaffolding + CI (incl. r2.1 patch, revs 1-3) | approved | 2026-08-22 |
 | 2 | core/ball+ffix+ntt (rev 1) | awaiting review | - |
-| 3 | theta (D1/D2 closed) | in progress | - |
+| 3 | theta (D1/D2 closed) | awaiting review | - |
 | 3 | theta | pending | - |
 | 4 | rs_main+rs_corr | pending | - |
 | 5 | multipoint+signs+turing | pending | - |
@@ -103,9 +103,10 @@ Re-measured attack ledger (fresh builds, verified binary timestamps):
 7. NTT exactness + benchmark honesty: schoolbook cross-checks pass; fitted slope 1.111, R^2=0.99995 over n=2^10..2^20, single-threaded Apple M2, conditions recorded in docs/benchmarks/ntt-bench.md.
 8. Cross-config determinism: Release vs Debug hashes identical locally; CI determinism-compare job enforces on every push.
 
-## Stage 3 attack ledger (partial, stage in progress)
+## Stage 3 attack ledger (final)
 - Bound-tightening x0.9 via ZF_TEST_BOUND_SCALE: L3 policy-equality check FAILS under scale (exit=1), passes clean. Deterministic, seed-independent.
-- FLINT acb_lgamma anomaly (O2): discovered during oracle design; documented in MATHS.md open items; mpmath goldens adopted as primary theta oracle.
+- FLINT acb_lgamma anomaly (O2): characterised precisely - at z=0.25+200i, acb_lgamma returns a ZERO-WIDTH ball whose midpoint excludes the true value (mpmath-confirmed to 30 digits) by ~3.6e-15, invariant across 400..800-bit working precision. Upstream-reportable. Consequence: mpmath goldens are the primary theta oracle; no FLINT lgamma layer in the suite.
+- Stale-binary incidents during development (twice): incremental builds silently linked outdated objects, faking pass/fail inversions. Clean-rebuild discipline adopted for every gate measurement; CI clean-builds by construction.
 
 ## Next action
 Stage 3 continues after stage 2 rev 1 gate verdict. On approval: stage 3 (theta), with a

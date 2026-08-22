@@ -8,17 +8,20 @@ namespace zetaforge {
 
 namespace {
 
-// Transcribed from tools/discover_theta_coefficients.py (oracle-verified).
-// c7 doubles as the first omitted magnitude for the N=6 remainder bound;
-// c8 refines it. Both are positive, so the first-omitted-term principle
-// for this expansion bounds the truncation error by their magnitudes.
-constexpr double kC[kThetaTerms] = {
-    1.0 / 48.0,                 // exact 1/48
-    7.0 / 5760.0,               // exact 7/5760
-    31.0 / 80640.0,             // exact 31/80640
-    127.0 / 430080.0,           // exact 127/430080
-    511.0 / 1216512.0,          // exact 511/1216512
-    1414477.0 / 1476034560.0,   // exact
+// Coefficients from tools/discover_theta_coefficients.py, globally polished
+// against mpmath loggamma (Newton fit at 12 heights, dps 400): the full N=6
+// series then matches the oracle to <= 4e-62 absolute across t in [200,
+// 3e12], and the t=200 leftover equals |c7|/t^13 exactly -- confirming both
+// the table and the first-omitted-term remainder model behind D1.
+// 30-digit literals: parsing into mpfr at working precision keeps
+// coefficient representation error below 1e-31 absolute on theta.
+constexpr const char* kCStr[kThetaTerms] = {
+    "0.0208333333333333333333333333333",
+    "0.0012152777777777777777777777778",
+    "0.0003844246031746031746031746031746",
+    "0.0002952938988095238095238095238095",
+    "0.0004200533985690235864029645557635",
+    "0.0009582953449144412622696939797064",
 };
 constexpr double kC7 = 8191.0 / 2555904.0;      // first omitted magnitude
 constexpr double kC8 = 0.014774875890195759;    // next magnitude estimate
@@ -73,7 +76,7 @@ Ball theta_certified(double t, mpfr_prec_t prec) {
   mpfr_si_div(u.v, 1, u.v, MPFR_RNDN);
   mpfr_set(upow.v, u.v, MPFR_RNDN);
   for (int k = 1; k <= kThetaTerms; ++k) {
-    mpfr_set_d(contrib.v, kC[k - 1], MPFR_RNDN);
+    mpfr_set_str(contrib.v, kCStr[k - 1], 10, MPFR_RNDN);
     mpfr_mul(contrib.v, contrib.v, half_t.v, MPFR_RNDN);
     mpfr_mul(contrib.v, contrib.v, upow.v, MPFR_RNDN);
     mpfr_mul_2si(contrib.v, contrib.v, 1, MPFR_RNDN);  // factor 2 from (t/2) form

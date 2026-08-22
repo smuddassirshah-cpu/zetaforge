@@ -97,6 +97,11 @@ int main() {
       mpfr_abs(d, d, MPFR_RNDN);
       mpfr_set_d(tol, th.radius(), MPFR_RNDN);
       mpfr_add_d(tol, tol, 1e-25, MPFR_RNDN);
+      if (mpfr_cmp(d, tol) > 0) {
+        std::printf("GOLDMISS t=%g d=%.6g tol=%.6g ratio=%.3g\n",
+                    t, mpfr_get_d(d, MPFR_RNDN), mpfr_get_d(tol, MPFR_RNDN),
+                    mpfr_get_d(d, MPFR_RNDN)/mpfr_get_d(tol, MPFR_RNDN));
+      }
       ZF_CHECK(mpfr_cmp(d, tol) <= 0);
       ++goldens;
     }
