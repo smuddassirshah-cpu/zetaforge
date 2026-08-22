@@ -45,6 +45,15 @@ int main() {
   }
   ZF_CHECK(threw_inf_centre);
 
+  bool threw_neg_inf_centre = false;
+  try {
+    const Ball neg_inf_centre{-std::numeric_limits<double>::infinity(), 0.5};
+    (void)neg_inf_centre;
+  } catch (const std::invalid_argument&) {
+    threw_neg_inf_centre = true;
+  }
+  ZF_CHECK(threw_neg_inf_centre);
+
   bool threw_inf_radius = false;
   try {
     const Ball inf_radius{0.5, std::numeric_limits<double>::infinity()};
