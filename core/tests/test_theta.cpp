@@ -82,19 +82,25 @@ int main() {
     ZF_CHECK(fh.good());
     std::string line;
     int goldens = 0;
+    mpfr_t g, d, tol;
+    mpfr_init2(g, 320); mpfr_init2(d, 320); mpfr_init2(tol, 128);
     while (std::getline(fh, line)) {
       if (line.empty() || line[0] == '#') continue;
       if (line.rfind("t,value", 0) == 0) continue;
       const auto comma = line.find(',');
       const double t = std::strtod(line.substr(0, comma).c_str(), nullptr);
-      const long double g = std::stold(line.substr(comma + 1));
+      const std::string vstr = line.substr(comma + 1);
+      if (mpfr_set_str(g, vstr.c_str(), 10, MPFR_RNDN) != 0) continue;
       const Ball th = theta_certified(t, kPrec);
-      const long double centre =
-          static_cast<long double>(mpfr_get_d(th.centre(), MPFR_RNDN));
-      const long double err = fabsl(centre - g);
-      ZF_CHECK(err <= static_cast<long double>(th.radius()) + 1e-30L);
+      // |centre - golden| computed fully in mpfr: no decimal-side precision loss.
+      mpfr_sub(d, th.centre(), g, MPFR_RNDN);
+      mpfr_abs(d, d, MPFR_RNDN);
+      mpfr_set_d(tol, th.radius(), MPFR_RNDN);
+      mpfr_add_d(tol, tol, 1e-25, MPFR_RNDN);
+      ZF_CHECK(mpfr_cmp(d, tol) <= 0);
       ++goldens;
     }
+    mpfr_clear(g); mpfr_clear(d); mpfr_clear(tol);
     ZF_CHECK(goldens >= 20);
     std::fprintf(stdout, "THETA_GOLDENS %d\n", goldens);
   }
