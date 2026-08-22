@@ -153,8 +153,10 @@ double add_floor(const Ball& x, const Ball& y, mpfr_srcptr) {
 double mul_floor(const Ball& x, const Ball& y, mpfr_srcptr) {
   const double cx = centre_lower_bound(x.centre());
   const double cy = centre_lower_bound(y.centre());
-  return std::max({term_floor(x.radius(), cy), term_floor(y.radius(), cx),
-                   term_floor(x.radius(), y.radius())});
+  const double f1 = term_floor(x.radius(), cy);
+  const double f2 = term_floor(y.radius(), cx);
+  const double f3 = term_floor(x.radius(), y.radius());
+  return std::max(f1, std::max(f2, f3));
 }
 
 // ---- oracle plumbing ----
