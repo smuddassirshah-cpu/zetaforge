@@ -81,6 +81,30 @@ interviewer's first follow-up is always "compared to what?".
   in r2). Rule going forward: every result cited from its own primary source;
   docs/MATHS.md is the single reference of record.
 
+## Stage 2 numerics decisions
+
+- 2026-08-22 (stage 2). Oracle dependency delivered as FLINT 3 rather than
+  standalone Arb: FLINT 3 incorporates Arb's ball API wholesale, is packaged
+  on both Homebrew (3.6.0) and Ubuntu apt (libflint-dev), and removes a
+  build-from-source dependency chain. PLAN section 4's "Arb" requirement is
+  satisfied by the same codebase under its merged distribution.
+- 2026-08-22 (stage 2). Radius primitives rewritten from fma-residual to
+  integer-exact decomposition arithmetic. Cause: std::fma(a,b,-r) correctly
+  rounds residuals below denorm_min to zero, so products that rounded upward
+  returned a radius one ulp BELOW the true product (observed at ~1.7e-484
+  residual). Found by the bit-exact reference suite, not by the Arb overlap
+  suite, which cannot see sound-but-non-minimal radii. Lesson recorded:
+  statistical oracles verify enclosure, never minimality; minimality requires
+  an exact reference.
+- 2026-08-22 (stage 2). Test references consolidated into exact_ref.hpp after
+  two independent reference bugs (missing exponent compensation; uint64
+  mantissa-product wraparound producing 36k phantom failures). Rule: every
+  mantissa product widens explicitly at the multiplication site.
+- 2026-08-22 (stage 2). Statistical mul_floor replaced by component-wise
+  truncated-product floors: the long-double replica inflated past the true
+  bound and false-failed a correct implementation. Floors must be provable
+  lower bounds, not approximations of one.
+
 ## Infrastructure decisions
 
 - 2026-08-22 (stage 1 gate rev 2). Fast-math poison regex extended from
