@@ -105,6 +105,19 @@ double Ball::finish_radius(double terms, mpfr_srcptr rounded_centre) {
   return inflate(with_rounding);
 }
 
+Ball Ball::from_centre_and_radius(mpfr_srcptr centre, double radius) {
+  if (!std::isfinite(radius) || radius < 0.0) {
+    throw std::invalid_argument("certified radius must be finite non-negative");
+  }
+  if (!mpfr_number_p(centre)) {
+    throw std::invalid_argument("certified centre must be finite");
+  }
+  Ball out(mpfr_get_prec(centre));
+  mpfr_set(out.centre_, centre, MPFR_RNDN);
+  out.radius_ = radius;
+  return out;
+}
+
 Ball Ball::add(const Ball& a, const Ball& b) {
   Ball out(std::max(a.precision(), b.precision()));
   mpfr_add(out.centre_, a.centre_, b.centre_, MPFR_RNDN);

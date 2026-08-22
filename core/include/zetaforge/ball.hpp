@@ -39,6 +39,11 @@ class Ball {
   // Exact scalar: doubles are representable exactly in mpfr, radius stays 0.
   static Ball from_double(double x, mpfr_prec_t prec_bits);
 
+  // Sub-double-granularity certified values (theta series): the caller owns
+  // the complete error budget; finish_radius's double-ulp policy would
+  // swamp radii of order 1e-25 at campaign heights.
+  static Ball from_centre_and_radius(mpfr_srcptr centre, double radius);
+
   // Parses a decimal string. The stored centre is the correctly rounded
   // representation at prec_bits; the parse itself is inexact unless the value
   // is representable, so radius starts at half an ulp of the stored centre.

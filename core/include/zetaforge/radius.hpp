@@ -121,7 +121,7 @@ inline double round_up_positive(unsigned __int128 M, int E,
 // for non-negative finite a, b.
 inline double up_add(double a, double b) noexcept {
   if (!(a >= 0.0 && b >= 0.0) || !std::isfinite(a) || !std::isfinite(b)) {
-    return !std::isfinite(a + b) ? a + b : 0.0;  // precondition violation: refuse enclosure
+    return std::numeric_limits<double>::infinity();  // precondition violation: refuse enclosure (never 0: false-exact)
   }
   if (a == 0.0) return b;
   if (b == 0.0) return a;
@@ -155,7 +155,7 @@ inline double up_add(double a, double b) noexcept {
 // Smallest double >= the exact product a*b, for non-negative finite a, b.
 inline double up_mul(double a, double b) noexcept {
   if (!(a >= 0.0 && b >= 0.0) || !std::isfinite(a) || !std::isfinite(b)) {
-    return !std::isfinite(a * b) ? a * b : 0.0;  // precondition violation: refuse enclosure
+    return std::numeric_limits<double>::infinity();  // precondition violation: refuse enclosure (never 0: false-exact)
   }
   if (a == 0.0 || b == 0.0) {
     return 0.0;
