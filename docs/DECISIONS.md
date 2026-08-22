@@ -83,6 +83,19 @@ interviewer's first follow-up is always "compared to what?".
 
 ## Infrastructure decisions
 
+- 2026-08-22 (stage 1 gate rev 2). Fast-math poison regex extended from
+  -ffast-math|-Ofast to include -funsafe-math-optimizations,
+  -fassociative-math, -freciprocal-math, and -ffinite-math-only, after review
+  demonstrated that -fassociative-math configured cleanly under the old guard.
+  -fassociative-math permits exactly the reduction reassociation the
+  determinism contract forbids; -ffinite-math-only breaks NaN/Inf handling
+  that interval arithmetic relies on. CUDA-side obligations for stage 7 logged
+  in PLAN section 11: scan CMAKE_CUDA_FLAGS*, forbid nvcc -use_fast_math,
+  require --fmad=false (nvcc defaults to fmad=true; likeliest parity failure).
+- 2026-08-22 (stage 1 gate rev 2). Ball stub validation gap closed early:
+  non-finite centres now rejected alongside bad radii. The stub is replaced at
+  stage 2 but a scaffolding component should not accept values its successor
+  would call invalid.
 - 2026-08-22 (r2.1). Determinism contract scoped to configurations: blocks
   carry a config hash; bit-identity holds per configuration; cross-
   architecture results reconciled at elevated precision before the chain

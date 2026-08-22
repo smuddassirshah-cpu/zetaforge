@@ -6,8 +6,9 @@
 namespace zetaforge {
 
 Ball::Ball(double centre, double radius) : centre_(centre), radius_(radius) {
-  if (radius < 0.0 || !std::isfinite(radius)) {
-    throw std::invalid_argument("ball radius must be finite and non-negative");
+  if (!std::isfinite(centre_) || radius < 0.0 || !std::isfinite(radius)) {
+    throw std::invalid_argument(
+      "ball centre must be finite and radius finite and non-negative");
   }
 }
 

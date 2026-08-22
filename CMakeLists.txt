@@ -19,7 +19,8 @@ foreach(_flagvars
     CMAKE_CXX_FLAGS_DEBUG
     CMAKE_CXX_FLAGS_RELWITHDEBINFO
     CMAKE_CXX_FLAGS_MINSIZEREL)
-  if("${${_flagvars}}" MATCHES "-ffast-math|-Ofast")
+  if("${${_flagvars}}" MATCHES
+      "-ffast-math|-Ofast|-funsafe-math-optimizations|-fassociative-math|-freciprocal-math|-ffinite-math-only")
     message(FATAL_ERROR
       "${_flagvars} contains a fast-math style flag; this violates the "
       "zetaforge determinism contract (PLAN.md section 8). Remove it.")

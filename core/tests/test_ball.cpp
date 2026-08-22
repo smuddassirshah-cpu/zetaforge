@@ -1,4 +1,5 @@
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 
 #include "check.hpp"
@@ -25,6 +26,33 @@ int main() {
     threw = true;
   }
   ZF_CHECK(threw);
+
+  bool threw_nan_centre = false;
+  try {
+    const Ball nan_centre{std::nan(""), 0.5};
+    (void)nan_centre;
+  } catch (const std::invalid_argument&) {
+    threw_nan_centre = true;
+  }
+  ZF_CHECK(threw_nan_centre);
+
+  bool threw_inf_centre = false;
+  try {
+    const Ball inf_centre{std::numeric_limits<double>::infinity(), 0.5};
+    (void)inf_centre;
+  } catch (const std::invalid_argument&) {
+    threw_inf_centre = true;
+  }
+  ZF_CHECK(threw_inf_centre);
+
+  bool threw_inf_radius = false;
+  try {
+    const Ball inf_radius{0.5, std::numeric_limits<double>::infinity()};
+    (void)inf_radius;
+  } catch (const std::invalid_argument&) {
+    threw_inf_radius = true;
+  }
+  ZF_CHECK(threw_inf_radius);
 
   return ::zftest::failure_count() == 0 ? 0 : 1;
 }
