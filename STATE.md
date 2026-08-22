@@ -41,6 +41,7 @@ Running log. One line each: date, decision, reason, PLAN.md deviation? y/n.
 - 2026-08-22 (stage 1 gate revision), S2: FP determinism now enforced by the build system: configure-time FATAL_ERROR on -ffast-math/-Ofast in any flag variable; -ffp-contract=off and -frounding-math pinned for GNU/Clang instead of trusting compiler defaults, y
 - 2026-08-22 (stage 1 gate revision), S3: .pytest_cache/ added to .gitignore explicitly, n
 - 2026-08-22 (stage 1 gate revision), S4 decided before stage 2 opens: hand-rolled Ball is production path on CPU as well as GPU; Arb is oracle + escalation engine only; full rationale in docs/DECISIONS.md, n
+- 2026-08-22 (stage 1 gate rev 2), Poison regex extended to -funsafe-math-optimizations|-fassociative-math|-freciprocal-math|-ffinite-math-only; Ball stub rejects non-finite centres with tests; stage 7 CUDA guard obligations written into PLAN section 11 DoD, n
 - 2026-08-22, Repo public from day one with stub README until Phase 3 rewrite, visibility is itself a signal and Phase 3 owns claims discipline, n
 
 ## Open questions
@@ -51,7 +52,12 @@ Anything blocking or deferred, with the stage it affects.
 - GPU economic verdict ($/Mzero vs pinned 64-core reference): measured at stage 7, feeds ledger. Affects stretch D decision at stage 9(b).
 - Isolation cost factor: modelled with 2x reserve now, measured for real at stage 9(a-i). Affects final D.
 
+## Stage 2 inherited obligations (from gate review)
+- ZF_CHECK harness gains seed reporting: randomised property tests must print the seed on failure, or a red CI run is not reproducible.
+- Outward rounding is the stage 2 correctness invariant: radius arithmetic rounds away from zero always; prefer nextafter/(1+eps) inflation over fesetround for portability; Arb property-test generators must hunt round-to-nearest-on-radius specifically, since one nearest-rounded radius silently produces a non-enclosure.
+- docs/benchmarks/ created and carrying the O(n log n) NTT benchmark before the stage 2 gate closes.
+
 ## Next action
-Await gate verdict on stage 1 (scaffolding + CI + r2.1 patch). On approval:
-stage 2, core/ball+ffix+ntt, introducing GMP/MPFR/Arb as first named
-dependencies with property tests against Arb.
+Await formal "approved, continue" on stage 1. On approval: stage 2,
+core/ball+ffix+ntt, introducing GMP/MPFR/Arb as first named dependencies with
+property tests against Arb, honouring the three inherited obligations above.
