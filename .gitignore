@@ -19,4 +19,5 @@ __pycache__/
 
 # tooling
 .ipynb_checkpoints/
+.pytest_cache/
 .DS_Store

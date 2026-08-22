@@ -50,6 +50,21 @@ interviewer's first follow-up is always "compared to what?".
 
 ## Numerics decisions
 
+- 2026-08-22 (stage 1 gate, S4). Ball arithmetic ownership: hand-rolled Ball
+  class is the production path ON CPU AS WELL AS GPU; Arb serves strictly as
+  test oracle (property tests from stage 2 onward) and as the engine behind
+  high-precision escalation for contested blocks. Alternatives: (a) arb_t
+  directly inside the certified core. Rejected: the GPU path needs hand-rolled
+  kernels regardless, so arb_t-on-CPU yields two divergent implementations
+  sharing nothing but a name, and CPU/GPU parity testing would compare unlike
+  things; also the determinism contract wants every rounding site owned
+  explicitly rather than delegated to library internals whose strategy can
+  change between versions. (b) Trusting Arb everywhere, hand-rolling never.
+  Rejected for the same GPU reason plus throughput: Arb optimises correctness
+  per call, not amortised campaign cost. What rigour rests on instead:
+  published bounds (Arias de Reyna), exhaustive property testing against the
+  Arb oracle, and MPFR-backed escalation when radii grow. Arb's version stays
+  pinned and recorded in the config hash either way.
 - 2026-08-22 (r2). Algorithmic lineage chosen in writing: Riemann-Siegel main
   sum plus correction series with certified remainders (Arias de Reyna,
   Math. Comp. 80 (2011), extending Gabcke 1979), Odlyzko-Schoenhage block

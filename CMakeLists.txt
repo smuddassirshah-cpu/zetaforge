@@ -9,8 +9,25 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Determinism contract (docs/PLAN.md section 8): refuse to configure if any
+# fast-math style flag is present anywhere in the user's flags, and pin the
+# contraction and rounding-mode assumptions ourselves rather than trusting
+# compiler defaults, which differ between GCC and Apple Clang (gate finding S2).
+foreach(_flagvars
+    CMAKE_CXX_FLAGS
+    CMAKE_CXX_FLAGS_RELEASE
+    CMAKE_CXX_FLAGS_DEBUG
+    CMAKE_CXX_FLAGS_RELWITHDEBINFO
+    CMAKE_CXX_FLAGS_MINSIZEREL)
+  if("${${_flagvars}}" MATCHES "-ffast-math|-Ofast")
+    message(FATAL_ERROR
+      "${_flagvars} contains a fast-math style flag; this violates the "
+      "zetaforge determinism contract (PLAN.md section 8). Remove it.")
+  endif()
+endforeach()
+
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic)
+  add_compile_options(-Wall -Wextra -Wpedantic -ffp-contract=off -frounding-math)
 endif()
 
 option(ZETAFORGE_BUILD_CUDA "Build GPU kernels (requires CUDA toolkit)" OFF)
