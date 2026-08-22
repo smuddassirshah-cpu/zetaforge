@@ -57,8 +57,8 @@ int main() {
       b[i] = rng.next() % 998244353ULL;
     }
     const std::vector<uint64_t> cyc = convolve_cyclic(a, b);
-    const std::vector<uint64_t> lin = schoolbook(a, b, n);  // truncated wrap: recompute
-    // wrap the linear result manually
+    // wrap the linear result manually (schoolbook with out_len=n would
+    // overrun: full products reach index 2n-2)
     std::vector<unsigned __int128> acc(n, 0);
     for (size_t i = 0; i < n; ++i)
       for (size_t j = 0; j < n; ++j) acc[(i + j) % n] += static_cast<unsigned __int128>(a[i]) * b[j];
@@ -66,7 +66,6 @@ int main() {
     for (size_t i = 0; i < n; ++i)
       if (cyc[i] != static_cast<uint64_t>(acc[i] % 998244353ULL)) ok = false;
     ZF_CHECK(ok);
-    (void)lin;
   }
 
   // Round-trip: convolving with a unit impulse at index 0 is the identity.
