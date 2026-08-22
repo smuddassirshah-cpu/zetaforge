@@ -103,5 +103,8 @@ Re-measured attack ledger (fresh builds, verified binary timestamps):
 8. Cross-config determinism: Release vs Debug hashes identical locally; CI determinism-compare job enforces on every push.
 
 ## Next action
-Await gate verdict on stage 2. On approval: stage 3 (theta), per PLAN section 11,
-with docs/MATHS.md obligations D1-D2 closing there.
+Await gate verdict on stage 2 rev 1. On approval: stage 3 (theta), with a
+gate condition carried forward from the stage 2 review: the D1-D2 truncation-
+bound oracle must be designed BEFORE the bound is written, and must not share
+truncation reasoning with the implementation - higher-precision evaluation
+via an independent series, or interval bracketing at working precision.
