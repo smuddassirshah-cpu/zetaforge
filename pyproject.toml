@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zetaforge-ops"
+version = "0.1.0"
+description = "Campaign operations for zetaforge: orchestration, analysis, CLI"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+
+[project.scripts]
+forge = "tools.cli:main"
+
+# pytest is named in CONTRIBUTING.md and PLAN.md; bounded range rather than a
+# false exactness claim. The lockfile discipline for python lands with the
+# first real dependency (stage 8) via a constraints file.
+[project.optional-dependencies]
+dev = ["pytest>=8,<9"]
+
+[tool.setuptools]
+packages = ["tools", "orchestrate", "analysis"]

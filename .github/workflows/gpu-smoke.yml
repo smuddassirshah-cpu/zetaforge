@@ -1,0 +1,22 @@
+name: gpu-smoke
+
+# Health check for the self-hosted GPU runner and, from stage 7 onward, the
+# CUDA build path. This job is deliberately NOT a required check: with no
+# runner attached it would queue forever and block merges.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * 1"
+
+jobs:
+  smoke:
+    runs-on: [self-hosted, gpu]
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: toolchain present
+        run: nvidia-smi && nvcc --version
+      - name: configure with cuda option
+        run: cmake -S . -B build-gpu -DZETAFORGE_BUILD_CUDA=ON
+      - name: build
+        run: cmake --build build-gpu --parallel

@@ -125,49 +125,93 @@ lineage and must say why.
 | Rejected: Platt's band-limited method | rejected for engine core | Per-point cost higher at campaign heights; designed around CPU interval arithmetic in Arb; weaker fit to GPU batch structure. Turing-method scaffolding is still taken from Platt-Trudgian regardless, and the stage 9 ground-truth window audits this lineage choice empirically against their certified results |
 | Mandatory adjunct: Euler-Maclaurin evaluation below threshold t0 | mandatory | RS is invalid at small t (Arias de Reyna states RS is useful only for large t); gamma_1 = 14.13 sits far below any RS validity region, so stage 4 exercises the EM path there and pins t0 from the published bounds |
 
-Cost statement, precisely: Hiary's amortised method computes zeta(1/2+it) at up
-to T^{1/4} points within a window of width T^{1/4} near height T at average
-cost T^{1/4+o(1)} per point, matching the Odlyzko-Schoenhage result over that
-interval (Hiary, Ann. Math. 174 (2011), 891-946; Odlyzko-Schoenhage 1988).
-Total-campaign exponents depend on window scheduling and are derived, not
-asserted, in docs/MATHS.md before stage 5 begins.
+Cost statement, precisely. Three distinct results must not be merged:
+
+- Odlyzko-Schoenhage, Trans. Amer. Math. Soc. 309 (1988), 797-809: the
+  multiple-evaluation paradigm; average O(T^{eps}) per point over windows of
+  width T^{alpha} after T^{1/2+eps} precomputation.
+- Hiary, Math. Comp. 80 (2011), 1785-1796 ("An amortized-complexity method"):
+  the amortised T^{1/4+o(1)} per-point bound for up to T^{1/4} points in a
+  window of width T^{1/4}, matching OS over that interval without FFT or large
+  storage. This is the result the multipoint design follows.
+- Hiary, Ann. Math. 174 (2011), 891-946 ("Fast methods"): single-point
+  T^{1/3+o(1)} evaluation; relevant to isolation refinement, not to block
+  scheduling.
+
+The r2 revision merged the two Hiary papers into one citation; corrected. The
+same failure mode as the Gabcke attribution error, one layer down. Total-
+campaign exponents depend on window scheduling and are derived, not asserted,
+in docs/MATHS.md before stage 5 begins.
 
 ## 5. Data
 
 - Sourcing: self-computed. Anchors: Platt-Trudgian's published terminal zero
-  count (12,363,153,437,138 zeros at H0) for boundary continuity;
-  Arb-generated small-range references for validation; Odlyzko tables for
-  methodology comparison only.
-- Storage: binary little-endian fixed-width ordinates internally;
-  gzip-chunked release to Zenodo with SHA-256 manifests. Certificates:
-  immutable, content-addressed.
+  count (12,363,153,437,138 zeros at H0) for boundary continuity; the
+  LMFDB-hosted Platt dataset (103,800,788,359 zeros up to height 30,610,046,000,
+  absolute precision +/- 2^-102, completeness verified by rigorous Turing's
+  method) for ordinate-level ground truth at low heights; Arb-generated small-
+  range references for validation.
+- Storage: binary little-endian fixed-width ordinates internally; release per
+  the archival tiers below with SHA-256 manifests. Certificates: immutable,
+  content-addressed.
 - Lifecycle: raw transcripts (gitignored, object store) -> verified
-  certificates (object store + Zenodo DOI) -> derived statistic CSVs
+  certificates (object store + archival tiers) -> derived statistic CSVs
   (committed, KB-scale).
-- Volume: driven by D, which is now derived rather than defaulted; see the
-  cost model below.
+
+### Data volume and archival
+
+- D = 10^11 implies about 4x10^11 ordinates, roughly 6.4 TB raw internally
+  (10^12 would be ~64 TB). Zenodo's standard quota is 50 GB per record with
+  200 GB by request, so a single Zenodo deposit is impossible and was never
+  re-examined when D rose 10x in r2; corrected now.
+- Archival tiers: (1) Zenodo concept DOI cluster carrying certificates,
+  manifests, derived statistics, sample chunks, and the full hash index
+  (integrity anchor, fits quotas); (2) bulk ordinates via Academic Torrents
+  plus object storage, content-addressed so any mirror verifies against the
+  Zenodo-anchored hashes; (3) on-request full sync for institutions.
+- Licensing: code MIT (LICENSE); released datasets CC0, attribution via the
+  citation file. Chosen over CC-BY because zero ordinates are facts and CC0
+  maximises downstream reuse without weakening the citation norm.
+- Drives the streaming verifier design (no full load).
 
 ### Cost model (scope-defining)
 
 Anchor, published: Platt-Trudgian verified [0, H0] at roughly 7.5M CPU core-hours.
 Work density grows like the square root of height per unit interval, so the work
 in a narrow window [H0, H0+D] relative to their total is approximately
-(3/2)(D/H0).
+(3/2)(D/H0). Two corrections from external review are folded in:
 
-| Extension D | Share of P-T total work | CPU core-hour equivalent | CPU-equivalent cost at $0.01/core-hr |
-|---|---|---|---|
-| 10^10 | 0.5% | ~37,500 | ~$375 |
-| 10^11 (baseline) | 5% | ~375,000 | ~$3.7k |
-| 10^12 (stretch) | 54% (exact scaling (4/3)^{1.5}) | ~4.05M | ~$40k |
+- The anchor prices a COUNT-only campaign. Platt-Trudgian counted zeros and
+  moved on; they did not isolate them, and produced no zero database (LMFDB
+  hosts Platt's separate, lower dataset). This plan releases ordinates for
+  every zero, and isolation multiplies evaluation count by a factor the
+  literature does not quantify as a campaign figure (Hiary's analysis suggests
+  T^{o(1)} extra evaluations per zero). Budgeted honestly: an isolation reserve
+  of 2x on all compute rows until stage 9(a-i) measures the real factor.
+- GPU economics is not a multiplier on CPU-priced dollars. GPU spot hours price
+  like tens of CPU vCPU-hours; a 20x throughput gain on 30x pricier hardware is
+  roughly break-even. The GPU bet is therefore an engineering hypothesis that
+  stage 7 must price in dollars per million zeros against a pinned CPU
+  reference node, never assumed.
 
-The original baseline of 10^10 was dinner money wrapped in fleet orchestration;
-it was picked by default, not by derivation, and is rejected. The GPU multiplier
-target from stage 7 (at least 20x throughput) applies on top of these figures,
-so the stretch row lands in the low single-digit thousands of dollars even with
-no further optimisation. Final D is pinned by measured cost-per-height from the
-stage 9 pilot and the budget ledger, subject to one hard floor: the campaign may
-stop early only after clearing a minimum committed record margin of D = 10^11.
-The $50k+ envelope prices the full stretch plus pilot plus contingency.
+| Extension D | Share of P-T work | Core-hours (count anchor) | x2 isolation reserve | CPU-eq cost at $0.01/core-hr | +25-30% storage/egress |
+|---|---|---|---|---|---|
+| 10^10 | 0.5% | ~37,500 | ~75,000 | ~$750 | ~$1k |
+| 10^11 (baseline) | 5% | ~375,000 | ~750,000 | ~$7.5k | ~$10k |
+| 10^12 (stretch) | 54% | ~4.05M | ~8.1M | ~$81k | ~$105k |
+
+Envelope verdicts stated plainly:
+
+- Baseline D = 10^11 fits comfortably inside $50k on the conservative CPU-only
+  accounting. It is the committed floor.
+- Stretch D = 10^12 does NOT fit inside $50k under conservative assumptions;
+  it requires either a favourable stage 7 GPU verdict in $/Mzero terms, a
+  measured isolation factor near 1, or an enlarged envelope. The plan of record
+  proceeds to stretch only if the ledger clears it after the pilot; otherwise
+  it settles at the largest D the ledger supports above the 10^11 floor.
+
+The original r2 claim that a GPU multiplier turns $40k into low thousands was
+arithmetically naive and is retracted.
 
 ### Data volume
 
@@ -222,9 +266,13 @@ data.
   flags
 - Concurrency: shared-nothing process-per-worker; no cross-process mutable
   state; GPU stream model documented
-- Determinism: pinned FP reduction order, no -ffast-math; same input implies
-  bit-identical certificates (replay-verifiable); one GPU arch pinned per
-  campaign segment
+- Determinism: pinned FP reduction order, no -ffast-math. The bit-identity
+  contract is scoped to a configuration: identical inputs, code version,
+  compiler, and GPU arch produce bit-identical certificates, and every block
+  record carries a config hash so replay verification is always against the
+  matching configuration. Cross-architecture agreement is NOT assumed; where
+  segments change arch or toolchain, results are reconciled at elevated
+  precision under the documented procedure before the chain advances
 
 ## 9. Limitations and trade-offs
 
@@ -241,8 +289,9 @@ data.
   (12,363,153,437,138). A non-empty diff halts the campaign before any new
   territory is claimed. Arb property-tests and MPFR escalation remain as
   secondary layers
-- Cross-GPU-architecture determinism not guaranteed; segments pinned per
-  arch, mismatches reconciled at elevated precision
+- Cross-GPU-architecture determinism not guaranteed: handled by the scoped
+  determinism contract in section 8 (config-hashed blocks, per-configuration
+  replay, elevated-precision reconciliation at segment boundaries)
 - Single-window statistics evidence behaviour at height T only
 - Spot-price spikes shrink stretch D before ever touching baseline D
 
@@ -266,17 +315,17 @@ sits inside the stage creating the exposure.
 
 | # | Stage | Definition of done |
 |---|---|---|
-| 1 | Scaffolding + CI | Build matrix green for C++/CUDA stub, Rust crate, Python package; gitleaks + pip-audit wired; Class-B floor active from commit zero |
+| 1 | Scaffolding + CI | Build matrix green (C++ core via CTest, Rust crate, Python package); gitleaks + pip-audit + cargo-audit wired; conditional GPU smoke job defined against a self-hosted runner label; Class-B floor active from commit zero; docs/DECISIONS.md and docs/MATHS.md skeletons present; .env.example covers every provider named in section 7; CITATION.cff validates; data licence decided |
 | 2 | core/ball+ffix+ntt | Property tests vs Arb on randomised suites; O(n log n) benchmark recorded in docs/benchmarks |
 | 3 | theta | Matches mpmath to required digits; truncation-bound proofs written in docs/MATHS.md and numerically tested |
 | 4 | rs_main+rs_corr+em_eval | gamma_1 = 14.1347 reproduced via the Euler-Maclaurin path; RS path certified above threshold t0 pinned at stage 3 from Arias de Reyna's published validity bounds; Z(t) matches Arb reference within certified radii on the overlap region |
 | 5 | multipoint+signs+turing | End-to-end certified verification of [0,10^6] (~1.75M zeros including Gram-block failures); certificates emitted |
 | 6 | verifier (Rust) | Accepts stage-5 chain; mutation tests detect every single-bit flip; fuzz clean |
-| 7 | gpu + parity | Bit-compatible on pinned arch; >=20x throughput benchmark vs CPU |
+| 7 | gpu + parity | Bit-compatible with the CPU path on one pinned arch; benchmark priced in dollars per million zeros against a PINNED 64-core CPU reference node (not a single core), throughput ratio reported alongside; the economic verdict feeds the ledger, it is not assumed |
 | 8 | orchestrate | Simulated-preemption dry-run passes; resume proven by kill-test; ledger within 5% |
-| 9 | Ground truth + pilot on cloud | (a) cross-validation window [H0-10^8, H0] recomputed and diffed against the Platt-Trudgian endpoint count: diff must be EMPTY, else campaign halts; (b) pilot window computed to measure cost-per-height and pin final D against the ledger; chain green throughout; data archived |
-| 10 | Main campaign [H0, H0+D] | Hard precondition: stage 9(a) diff empty. Boundary zero-count continuity vs Platt-Trudgian; full chain verified; contested blocks resolved |
-| 11 | Analysis + release | Notebooks reproduce figures from released data alone; Zenodo DOI; pre-push gate passed |
+| 9 | Ground truth + pilot on cloud | Two gates, because no single source covers both axes: (a-i) ordinate diff: recompute a window at or below 3.06x10^10 and diff zero ordinates against the LMFDB-hosted Platt dataset (103,800,788,359 zeros to 30,610,046,000 at +/-2^-102): diff must be EMPTY; validates the stack zero-by-zero but 100x below campaign height; also measures the real isolation cost factor for the ledger. (a-ii) count consistency at H0: our independently computed Turing prediction and observed sign-change accounting must agree with the published endpoint 12,363,153,437,138 within the explicit S(T) bound used; full campaign height, count-level only. (b) pilot window computed to measure cost-per-height and pin final D against the ledger; chain green throughout; data archived |
+| 10 | Main campaign [H0, H0+D] | Hard preconditions: stage 9(a-i) diff empty AND stage 9(a-ii) consistent. Boundary continuity vs Platt-Trudgian; full chain verified; contested blocks resolved |
+| 11 | Analysis + release | Notebooks reproduce figures from released data alone; archival per section 5 tiers (Zenodo concept DOI cluster as integrity anchor, bulk ordinates via Academic Torrents plus object storage); CC0 dataset metadata published; pre-push gate passed |
 
 Counterexample protocol: a suspected off-line zero freezes the campaign,
 triggers a max-precision triple-check by an independent path, and publishes

@@ -1,0 +1,11 @@
+[package]
+name = "zetaforge-verifier"
+version = "0.1.0"
+edition = "2021"
+description = "Independent certificate checker for zetaforge"
+license = "MIT"
+
+# Decision note: zero runtime dependencies at stage 1 by design. Parsing and
+# schema work arrive in stage 6 with each dependency justified per protocol.
+
+[dependencies]
