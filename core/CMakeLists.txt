@@ -40,6 +40,8 @@ target_link_libraries(test_radius_invariants PRIVATE zetaforge_core)
 add_test(NAME radius_invariants COMMAND test_radius_invariants)
 
 add_executable(test_theta tests/test_theta.cpp src/theta.cpp)
+target_compile_definitions(test_theta PRIVATE
+  THETA_GOLDEN_CSV="${CMAKE_SOURCE_DIR}/docs/golden/theta_golden.csv")
 target_link_libraries(test_theta PRIVATE zetaforge_core ${FLINT_LIBRARY})
 target_include_directories(test_theta PRIVATE ${FLINT_INCLUDE_DIR})
 add_test(NAME theta COMMAND test_theta)
