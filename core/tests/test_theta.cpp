@@ -28,6 +28,10 @@
 #include "check.hpp"
 #include "zetaforge/theta.hpp"
 
+#ifndef THETA_GOLDEN_CSV
+#define THETA_GOLDEN_CSV "docs/golden/theta_golden.csv"
+#endif
+
 using zetaforge::Ball;
 using zetaforge::kThetaSafety;
 using zetaforge::theta_certified;
@@ -74,7 +78,7 @@ int main() {
 
   // L2: golden corpus.
   {
-    std::ifstream fh("docs/golden/theta_golden.csv");
+    std::ifstream fh(THETA_GOLDEN_CSV);
     ZF_CHECK(fh.good());
     std::string line;
     int goldens = 0;
