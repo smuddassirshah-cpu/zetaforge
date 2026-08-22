@@ -13,12 +13,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: install numeric dependencies
+        run: sudo apt-get update && sudo apt-get install -y libgmp-dev libmpfr-dev libflint-dev pkg-config
       - name: configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
       - name: build
         run: cmake --build build --parallel
       - name: test
         run: ctest --test-dir build --output-on-failure
+      - name: emit determinism hash
+        run: ./build/core/test_determinism | grep DETERMINISM_HASH > determinism_${{ matrix.build_type }}.txt && cat determinism_${{ matrix.build_type }}.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: determinism-${{ matrix.build_type }}
+          path: determinism_${{ matrix.build_type }}.txt
+
+  determinism-compare:
+    needs: cpp
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: determinism-*
+      - name: require identical hashes across configurations
+        run: |
+          diff determinism-Release/determinism_Release.txt determinism-Debug/determinism_Debug.txt
 
   rust:
     runs-on: ubuntu-latest

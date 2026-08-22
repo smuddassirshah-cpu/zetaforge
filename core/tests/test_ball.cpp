@@ -5,63 +5,93 @@
 #include "check.hpp"
 #include "zetaforge/ball.hpp"
 
+using zetaforge::Ball;
+
 int main() {
-  using zetaforge::Ball;
+  // Exact scalars carry zero radius; binary ops never claim exactness.
+  Ball half = Ball::from_double(0.5, 128);
+  ZF_CHECK(half.radius() == 0.0);
+  ZF_CHECK(!half.contains_zero());
 
-  const Ball b{0.5, 0.25};
-  ZF_CHECK(b.centre() == 0.5);
-  ZF_CHECK(b.radius() == 0.25);
-  ZF_CHECK(!b.contains_zero());
-  ZF_CHECK(b.width() == 0.5);
+  Ball zero = Ball::from_double(0.0, 128);
+  ZF_CHECK(zero.contains_zero());
 
-  const Ball z{-0.1, 0.2};
-  ZF_CHECK(z.contains_zero());
-  ZF_CHECK(std::abs(z.width() - 0.4) < 1e-15);
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  const double inf = std::numeric_limits<double>::infinity();
+
+  Ball sum = Ball::add(Ball::from_double(0.5, 128), Ball::from_double(0.25, 128));
+  ZF_CHECK(sum.radius() > 0.0);
+  ZF_CHECK(std::fabs(mpfr_get_d(sum.centre(), MPFR_RNDN) - 0.75) < 1e-18);
+
+  Ball diff = Ball::sub(half, Ball::from_double(0.5, 128));
+  ZF_CHECK(diff.contains_zero());
+  ZF_CHECK(diff.radius() > 0.0);
+
+  Ball m = Ball::mul(Ball::from_double(4.0, 128), Ball::from_double(3.0, 128));
+  ZF_CHECK(std::fabs(mpfr_get_d(m.centre(), MPFR_RNDN) - 12.0) < 1e-15);
+
+  Ball s3 = Ball::scale(half, 3);
+  ZF_CHECK(std::fabs(mpfr_get_d(s3.centre(), MPFR_RNDN) - 1.5) < 1e-18);
+
+  // Parse carries representation doubt: radius strictly positive.
+  Ball p = Ball::parse("0.1", 128);
+  ZF_CHECK(p.radius() >= std::numeric_limits<double>::denorm_min());
+
+  // Escalation policy: relative width thresholds.
+  ZF_CHECK(!sum.needs_escalation(1e6));
+  ZF_CHECK(sum.needs_escalation(1e-30));
 
   bool threw = false;
   try {
-    const Ball bad{1.0, -0.5};
-    (void)bad;
+    auto b = Ball::from_double(nan, 128);
+    (void)b;
   } catch (const std::invalid_argument&) {
     threw = true;
   }
   ZF_CHECK(threw);
 
-  bool threw_nan_centre = false;
+  threw = false;
   try {
-    const Ball nan_centre{std::nan(""), 0.5};
-    (void)nan_centre;
+    auto b = Ball::from_double(inf, 128);
+    (void)b;
   } catch (const std::invalid_argument&) {
-    threw_nan_centre = true;
+    threw = true;
   }
-  ZF_CHECK(threw_nan_centre);
+  ZF_CHECK(threw);
 
-  bool threw_inf_centre = false;
+  threw = false;
   try {
-    const Ball inf_centre{std::numeric_limits<double>::infinity(), 0.5};
-    (void)inf_centre;
+    auto b = Ball::parse("not-a-number", 128);
+    (void)b;
   } catch (const std::invalid_argument&) {
-    threw_inf_centre = true;
+    threw = true;
   }
-  ZF_CHECK(threw_inf_centre);
+  ZF_CHECK(threw);
 
-  bool threw_neg_inf_centre = false;
+  threw = false;
   try {
-    const Ball neg_inf_centre{-std::numeric_limits<double>::infinity(), 0.5};
-    (void)neg_inf_centre;
+    s3.widen_radius(-1.0);
   } catch (const std::invalid_argument&) {
-    threw_neg_inf_centre = true;
+    threw = true;
   }
-  ZF_CHECK(threw_neg_inf_centre);
+  ZF_CHECK(threw);
 
-  bool threw_inf_radius = false;
+  threw = false;
   try {
-    const Ball inf_radius{0.5, std::numeric_limits<double>::infinity()};
-    (void)inf_radius;
+    s3.widen_radius(inf);
   } catch (const std::invalid_argument&) {
-    threw_inf_radius = true;
+    threw = true;
   }
-  ZF_CHECK(threw_inf_radius);
+  ZF_CHECK(threw);
+
+  threw = false;
+  try {
+    Ball lowprec(32);
+    (void)lowprec;
+  } catch (const std::invalid_argument&) {
+    threw = true;
+  }
+  ZF_CHECK(threw);
 
   return ::zftest::failure_count() == 0 ? 0 : 1;
 }

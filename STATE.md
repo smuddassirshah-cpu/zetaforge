@@ -1,13 +1,13 @@
 # Build state
 
-Current stage: 1
+Current stage: 2
 Last updated: 2026-08-22
 
 ## Stages
 | # | Stage | Status | Gate |
 |---|-------|--------|------|
-| 1 | Scaffolding + CI (incl. r2.1 patch) | awaiting review | - |
-| 2 | core/ball+ffix+ntt | pending | - |
+| 1 | Scaffolding + CI (incl. r2.1 patch, revs 1-3) | approved | 2026-08-22 |
+| 2 | core/ball+ffix+ntt | in progress | - |
 | 3 | theta | pending | - |
 | 4 | rs_main+rs_corr | pending | - |
 | 5 | multipoint+signs+turing | pending | - |
@@ -58,6 +58,17 @@ Anything blocking or deferred, with the stage it affects.
 - Outward rounding is the stage 2 correctness invariant: radius arithmetic rounds away from zero always; prefer nextafter/(1+eps) inflation over fesetround for portability; Arb property-test generators must hunt round-to-nearest-on-radius specifically, since one nearest-rounded radius silently produces a non-enclosure. Gate centre of gravity: this stage can be silently wrong for the first time.
 - docs/benchmarks/ created and carrying the O(n log n) NTT benchmark before the stage 2 gate closes.
 - Signal-ladder discipline: stages 2/3/5/6 are packaged as standalone artefacts when reached, not labelled and left internal (time-to-signal mitigation).
+
+## Stage 2 pre-registered gate attacks (reviewer, 2026-08-22)
+Build against these; run them on ourselves before the gate.
+1. Sabotage radius rounding: flip one radius op to round-to-nearest; property suite MUST fail. A suite passing with and without correct rounding is worthless.
+2. Boundary hunting: adversarial inputs where the true result sits within 1 ulp of a ball edge; random uniform generators do not land there unaided.
+3. False-exact: radius underflow to zero silently asserts certainty. Construct subnormal radii, zero radius policy check, DBL_MAX radius, centre near overflow.
+4. Seed reproducibility: force a failure, take printed seed, re-run, expect identical failure set.
+5. Oracle independence: generators and comparison logic share nothing with Ball internals (no same rounding helpers); otherwise Arb checks the implementation against itself.
+6. ffix under-reporting: adversarial inputs where tracked bound comes out smaller than true error.
+7. NTT exactness at boundary lengths; benchmark honesty: fitted slope over an n-range with hardware noted and single-threaded conditions stated, not three timings in a table.
+8. Cross-configuration determinism: Release and Debug bit-identical ball results; first stage where -ffp-contract=off is load-bearing.
 
 ## Next action
 Await formal "approved, continue" on stage 1. On approval: stage 2,

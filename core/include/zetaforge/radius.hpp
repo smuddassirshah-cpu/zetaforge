@@ -1,0 +1,199 @@
+#pragma once
+
+// Decision note: outward rounding primitives for the radius path. The
+// invariant these implement is the project's correctness core: every result
+// is greater than or equal to the exact real value of its operation on
+// non-negative operands.
+//
+// History worth keeping visible: the first revision computed the product
+// residual via std::fma(a, b, -r) and bumped on resid > 0. That is unsound:
+// when the product rounds upward, the true residual can sit far below
+// denorm_min (observed at ~1.7e-484), the correctly rounded fma returns 0,
+// and the primitive silently returns one ulp BELOW the exact product -- an
+// enclosure hole invisible to statistical tests and caught only by the
+// bit-exact integer reference in core/tests/test_radius.cpp. The primitives
+// therefore now compute exact integer decompositions directly; there are no
+// residuals anywhere on this path.
+//
+// Portability: unsigned __int128 (GCC/Clang), consistent with ntt.hpp and
+// ffix.hpp. Soundness depends on round-to-nearest being irrelevant here --
+// these paths never consult the ambient rounding mode.
+
+#include <cmath>
+#include <cstdint>
+#include <cstring>
+#include <limits>
+#include <utility>
+
+namespace zetaforge {
+
+namespace radius_detail {
+
+constexpr uint64_t kMantMask = (UINT64_C(1) << 52) - 1;
+
+// Exact decomposition for finite non-zero x: |x| = mant * 2^exp.
+inline void decompose(double x, uint64_t& mant, int& exp) {
+  uint64_t bits = 0;
+  std::memcpy(&bits, &x, sizeof(bits));
+  const uint64_t frac = bits & kMantMask;
+  const int raw_exp = static_cast<int>((bits >> 52) & 0x7FF);
+  if (raw_exp == 0) {
+    mant = frac;
+    exp = -1074;
+  } else {
+    mant = frac | (UINT64_C(1) << 52);
+    exp = raw_exp - 1075;
+  }
+}
+
+// Smallest finite non-negative double >= M * 2^E for M > 0.
+// Overflow saturates to INFINITY; results below denorm_min floor to
+// denorm_min (never a false-exact zero).
+inline double round_up_positive(unsigned __int128 M, int E,
+                                bool sticky_in = false) {
+  bool sticky = sticky_in;
+  if (M == 0 && !sticky) {
+    return 0.0;
+  }
+  if (M == 0) {
+    return std::numeric_limits<double>::denorm_min();
+  }
+  int bl = 0;
+  {
+    unsigned __int128 t = M;
+    while (t != 0) {
+      t >>= 1;
+      ++bl;
+    }
+  }
+  unsigned __int128 q;
+  if (bl > 53) {
+    const int s = bl - 53;
+    q = M >> s;
+    sticky = sticky || ((M & (((unsigned __int128)1 << s) - 1)) != 0);
+    E += s;
+  } else {
+    q = M << (53 - bl);
+    E -= 53 - bl;
+  }
+  if (sticky) ++q;
+  if (q == ((unsigned __int128)1 << 53)) {
+    q >>= 1;
+    ++E;
+  }
+
+  const int fe = E + 52;  // binade exponent: value = (q/2^52) * 2^fe
+  if (fe > 1023) {
+    return INFINITY;
+  }
+  if (fe >= -1022) {
+    const uint64_t bits =
+        (static_cast<uint64_t>(fe + 1023) << 52) |
+        static_cast<uint64_t>(q - ((unsigned __int128)1 << 52));
+    double out = 0;
+    std::memcpy(&out, &bits, sizeof(out));
+    return out;
+  }
+  // Subnormal range: ceil(M * 2^E / 2^-1074) units of denorm_min.
+  const int sh = E + 1074;  // units = ceil(M * 2^sh)
+  unsigned __int128 units;
+  if (sh >= 0) {
+    if (sh > 127 || (sh > 0 && M > (((unsigned __int128)1 << 127) >> sh))) {
+      return INFINITY;
+    }
+    units = M << sh;
+  } else {
+    if (-sh > 127) {
+      return std::numeric_limits<double>::denorm_min();
+    }
+    const unsigned __int128 d = (unsigned __int128)1 << (-sh);
+    units = (M + d - 1) / d;
+  }
+  if (units >= ((unsigned __int128)1 << 52)) {
+    return INFINITY;  // crossed into normal range through ceiling: escalate
+  }
+  const double out = std::ldexp(static_cast<double>(units), -1074);
+  return out > 0.0 ? out : std::numeric_limits<double>::denorm_min();
+}
+
+}  // namespace radius_detail
+
+// Smallest double strictly greater than or equal to the exact sum a+b,
+// for non-negative finite a, b.
+inline double up_add(double a, double b) noexcept {
+  if (!(a >= 0.0 && b >= 0.0) || !std::isfinite(a) || !std::isfinite(b)) {
+    return !std::isfinite(a + b) ? a + b : 0.0;  // precondition violation: refuse enclosure
+  }
+  if (a == 0.0) return b;
+  if (b == 0.0) return a;
+  uint64_t ma, mb;
+  int ea, eb;
+  radius_detail::decompose(a, ma, ea);
+  radius_detail::decompose(b, mb, eb);
+  if (ea < eb) {
+    std::swap(ma, mb);
+    std::swap(ea, eb);
+  }
+  const int shift = ea - eb;
+  unsigned __int128 sum = static_cast<unsigned __int128>(ma);
+  bool sticky = false;
+  if (shift <= 127) {
+    if (shift > 0) {
+      // shift may exceed 64: mb must be widened before shifting or masking
+      const unsigned __int128 mbw = static_cast<unsigned __int128>(mb);
+      sticky = (mbw & (((unsigned __int128)1 << shift) - 1)) != 0;
+      sum += mbw >> shift;
+    } else {
+      sum += mb;
+    }
+  } else {
+    sticky = mb != 0;
+  }
+  // sum is exact at scale ea (the larger exponent); sticky carries the loss.
+  return radius_detail::round_up_positive(sum, ea, sticky);
+}
+
+// Smallest double >= the exact product a*b, for non-negative finite a, b.
+inline double up_mul(double a, double b) noexcept {
+  if (!(a >= 0.0 && b >= 0.0) || !std::isfinite(a) || !std::isfinite(b)) {
+    return !std::isfinite(a * b) ? a * b : 0.0;  // precondition violation: refuse enclosure
+  }
+  if (a == 0.0 || b == 0.0) {
+    return 0.0;
+  }
+  uint64_t ma, mb;
+  int ea, eb;
+  radius_detail::decompose(a, ma, ea);
+  radius_detail::decompose(b, mb, eb);
+  return radius_detail::round_up_positive(
+      static_cast<unsigned __int128>(ma) * mb, ea + eb);
+}
+
+// One ulp upward; maps zero to the smallest positive subnormal so an inexact
+// radius can never collapse to a false-exact zero.
+inline double inflate(double x) noexcept {
+  if (!(x < INFINITY)) {
+    return x;
+  }
+  if (x <= 0.0) {
+    return std::numeric_limits<double>::denorm_min();
+  }
+  return std::nextafter(x, INFINITY);
+}
+
+// Conservative bound on |exact - c| for a real number whose nearest-double
+// representation is c: half the wider ulp span at c. Both distances are
+// Sterbenz-exact subtractions, so the bound itself is trustworthy.
+inline double half_ulp_bound(double c) noexcept {
+  if (!std::isfinite(c)) {
+    return INFINITY;
+  }
+  if (c == 0.0) {
+    return std::numeric_limits<double>::denorm_min();
+  }
+  const double up = std::nextafter(c, INFINITY);
+  const double dn = std::nextafter(c, -INFINITY);
+  return std::fmax(up - c, c - dn) * 0.5;
+}
+
+}  // namespace zetaforge
