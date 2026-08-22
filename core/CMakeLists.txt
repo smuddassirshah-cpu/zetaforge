@@ -34,3 +34,7 @@ target_link_libraries(bench_ntt PRIVATE zetaforge_core)
 add_executable(test_radius tests/test_radius.cpp)
 target_link_libraries(test_radius PRIVATE zetaforge_core)
 add_test(NAME radius_exact COMMAND test_radius)
+
+add_executable(test_radius_invariants tests/test_radius_invariants.cpp)
+target_link_libraries(test_radius_invariants PRIVATE zetaforge_core)
+add_test(NAME radius_invariants COMMAND test_radius_invariants)

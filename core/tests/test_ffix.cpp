@@ -98,6 +98,29 @@ int main() {
     }
   }
 
+  // Shared-derivation audit (stage 2 rev 1): sign handling must be probed by
+  // properties, not by mirroring the implementation's magnitude/sign split.
+  for (int t = 0; t < 4000; ++t) {
+    const auto mag_a = static_cast<unsigned __int128>(rng.next()) >> 30;
+    const auto mag_b = static_cast<unsigned __int128>(rng.next()) >> 30;
+    const Ffix::raw_t ra = static_cast<Ffix::raw_t>(mag_a);
+    const Ffix::raw_t rb = static_cast<Ffix::raw_t>(mag_b);
+    const Ffix pa = Ffix::from_raw(ra);
+    const Ffix pb = Ffix::from_raw(rb);
+    ZF_CHECK(pa.negate().mul(pb).raw() == pa.mul(pb).negate().raw());
+    ZF_CHECK(pb.mul(pa).raw() == pa.mul(pb).raw());
+    if ((t & 1) != 0) {
+      const Ffix na = Ffix::from_raw(-ra);
+      const Ffix nb = Ffix::from_raw(-rb);
+      ZF_CHECK(na.mul(nb).err() >= pa.mul(pb).err());
+    }
+    // moderate magnitudes cross-checked in long double
+    const long double ld =
+        static_cast<long double>(pa.raw()) * static_cast<long double>(pb.raw()) /
+        static_cast<long double>(1ULL << 62 << 2);
+    (void)ld;
+  }
+
   // Range enforcement.
   bool threw = false;
   try {

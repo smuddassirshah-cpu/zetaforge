@@ -89,18 +89,7 @@ int main() {
   for (int t = 0; t < 40000; ++t) {
     const double a = random_normal_finite();
     const double b = random_normal_finite();
-    const double iv = up_mul(a, b);
-    const double rv = ref_up_mul(a, b);
-    if (iv != rv) {
-      const Decomposed da2 = decomp(a);
-      const Decomposed db2 = decomp(b);
-      std::printf("RANDMUL t=%d\n a=%.17g\n b=%.17g\n impl=%.17g ref=%.17g\n ma=%llu ea=%d mb=%llu eb=%d\n",
-                  t, a, b, iv, rv,
-                  static_cast<unsigned long long>(da2.mant), da2.exp,
-                  static_cast<unsigned long long>(db2.mant), db2.exp);
-      return 1;
-    }
-    ZF_CHECK(iv == rv);
+    ZF_CHECK(up_mul(a, b) == ref_up_mul(a, b));
   }
 
   // up_add: aligned-gap corpus plus randomised trials with bounded gaps.

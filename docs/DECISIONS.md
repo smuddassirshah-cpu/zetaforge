@@ -81,6 +81,27 @@ interviewer's first follow-up is always "compared to what?".
   in r2). Rule going forward: every result cited from its own primary source;
   docs/MATHS.md is the single reference of record.
 
+### Stage 2 rev 1 additions
+
+- 2026-08-22 (gate rev). up_add subnormal hole root cause accepted verbatim:
+  post-normalisation (q,E) is the only coherent pair; the subnormal branch
+  mixed pre-normalisation M with mutated E. Fixed with units = ceil(q/2^sh).
+- 2026-08-22 (gate rev). ORACLE INDEPENDENCE REDEFINED: independence means
+  independently DERIVED, not independently filed. Two files can contain the
+  same wrong reasoning. exact_ref.hpp rebuilt on the bit-length identity and
+  raw 2^-1074 unit arithmetic; radius.hpp keeps the normalisation machine.
+  The two now fail differently under any single-sided reasoning slip.
+- 2026-08-22 (gate rev). Oracle-free invariant tests added as a third layer:
+  bit-pattern expectations and first-principles identities that reference no
+  other component (I1 exhaustive subnormal sums, I2 commutativity,
+  I3 domination, I4 widen monotonicity regression, I5 identity).
+- 2026-08-22 (gate rev). Shared-derivation audit of remaining pairs: ffix's
+  U256 schoolbook shares only limb-definition reasoning with ffix::mul; sign
+  handling was unprobed and is now property-tested (negation symmetry,
+  commutativity, negative-magnitude error dominance). ntt-vs-schoolbook is
+  genuinely different algorithms. Oracle floors DEPEND on exact_ref by design
+  and are documented as such (not an independence claim).
+
 ## Stage 2 numerics decisions
 
 - 2026-08-22 (stage 2). Oracle dependency delivered as FLINT 3 rather than

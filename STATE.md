@@ -70,7 +70,29 @@ Build against these; run them on ourselves before the gate.
 7. NTT exactness at boundary lengths; benchmark honesty: fitted slope over an n-range with hardware noted and single-threaded conditions stated, not three timings in a table.
 8. Cross-configuration determinism: Release and Debug bit-identical ball results; first stage where -ffp-contract=off is load-bearing.
 
-## Stage 2 attack ledger (pre-registered items vs outcomes)
+## Stage 2 rev 1 (gate defect fix, 2026-08-22)
+Gate-blocking defect: up_add subnormal enclosure hole. Root cause per external
+review, confirmed: round_up_positive subnormal branch re-read pre-normalisation
+M against the mutated E; the pair (q, E) is the only coherent description after
+the 53-bit shift. Fix applied in radius.hpp (units = ceil(q / 2^sh), sh =
+-(E+1074), sh>127 -> one unit). exact_ref.hpp rebuilt on a structurally
+independent derivation: binade exponent from the bit-length identity
+fe = E + bl - 1 (fact, no mutation) and a single ceiling/floor division;
+subnormal domain computed in raw integer units of 2^-1074. No normalisation
+state machine exists on the reference side to mirror.
+
+Re-measured attack ledger (fresh builds, verified binary timestamps):
+- ATTACK 1 re-measured: sticky-drop sabotage in radius.hpp normalisation ->
+  radius_exact exit=1 (detected); oracle blind by design (sound-but-non-minimal
+  radii pass overlap). Invariants suite immune to this vector by construction.
+- ATTACK 3 re-measured: subnormal denorm-floor -> return 0 sabotage ->
+  radius_exact exit=1 via targeted up_mul(denorm,dn)==denorm_min case.
+- ATTACK 5 re-measured/resolved structurally: reviewer demonstration cases
+  (up_add(dm,dm)=2dm, up_add(7dm,9dm)=16dm, widen monotonic x4) all pass;
+  oracle-free invariant suite added so reference compromise cannot mask again.
+- Full suite: 7/7 green; cross-config hashes identical locally.
+
+## Stage 2 attack ledger (pre-registered items vs original outcomes)
 1. Sabotage radius rounding: statistical oracle suite blind (0 failures, predicted); bit-exact reference detects instantly. Division of labour confirmed.
 2. Boundary hunting: cancellation/pow2/subnormal generators in oracle suite; boundary non-enclosure would fail overlap check.
 3. False-exact: subnormal-floor sabotage detected by targeted case (up_mul(denorm,denorm)==denorm_min fails when floor removed).
