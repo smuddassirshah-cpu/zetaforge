@@ -42,6 +42,7 @@ Running log. One line each: date, decision, reason, PLAN.md deviation? y/n.
 - 2026-08-22 (stage 1 gate revision), S3: .pytest_cache/ added to .gitignore explicitly, n
 - 2026-08-22 (stage 1 gate revision), S4 decided before stage 2 opens: hand-rolled Ball is production path on CPU as well as GPU; Arb is oracle + escalation engine only; full rationale in docs/DECISIONS.md, n
 - 2026-08-22 (stage 1 gate rev 2), Poison regex extended to -funsafe-math-optimizations|-fassociative-math|-freciprocal-math|-ffinite-math-only; Ball stub rejects non-finite centres with tests; stage 7 CUDA guard obligations written into PLAN section 11 DoD, n
+- 2026-08-22 (stage 1 gate rev 3), Coverage claim corrected: negative-infinity centre test added (report had said four rejection tests, there were three); stage 5 DoD amended per risk register: early isolation-factor estimate measured over [0,10^6] and recorded against the 2x reserve, D6 now bounded at stage 5 rather than first measured at stage 9(a-i); MATHS.md D6 updated accordingly, y
 - 2026-08-22, Repo public from day one with stub README until Phase 3 rewrite, visibility is itself a signal and Phase 3 owns claims discipline, n
 
 ## Open questions
@@ -54,8 +55,9 @@ Anything blocking or deferred, with the stage it affects.
 
 ## Stage 2 inherited obligations (from gate review)
 - ZF_CHECK harness gains seed reporting: randomised property tests must print the seed on failure, or a red CI run is not reproducible.
-- Outward rounding is the stage 2 correctness invariant: radius arithmetic rounds away from zero always; prefer nextafter/(1+eps) inflation over fesetround for portability; Arb property-test generators must hunt round-to-nearest-on-radius specifically, since one nearest-rounded radius silently produces a non-enclosure.
+- Outward rounding is the stage 2 correctness invariant: radius arithmetic rounds away from zero always; prefer nextafter/(1+eps) inflation over fesetround for portability; Arb property-test generators must hunt round-to-nearest-on-radius specifically, since one nearest-rounded radius silently produces a non-enclosure. Gate centre of gravity: this stage can be silently wrong for the first time.
 - docs/benchmarks/ created and carrying the O(n log n) NTT benchmark before the stage 2 gate closes.
+- Signal-ladder discipline: stages 2/3/5/6 are packaged as standalone artefacts when reached, not labelled and left internal (time-to-signal mitigation).
 
 ## Next action
 Await formal "approved, continue" on stage 1. On approval: stage 2,

@@ -15,7 +15,7 @@ claim whose status here is "pending" past the stage that needs it.
 | D3 | Correction-series remainder bound at campaign precision | stage 4 | pending |
 | D4 | Multipoint window scheduling: total-campaign exponent derived from the per-window results below; no asserted exponents | stage 5 precondition | pending |
 | D5 | Turing-method window accounting with explicit S(T) bounds (Trudgian lineage) | stage 5 | pending |
-| D6 | Isolation cost factor model (evaluations per zero), to be compared against the stage 9(a-i) measured factor | stage 9(a-i) | pending |
+| D6 | Isolation cost factor model (evaluations per zero); early low-height estimate measured at stage 5 over [0,10^6], campaign-height figure confirmed at stage 9(a-i); both compared against the 2x reserve | stage 5 (estimate), stage 9(a-i) (confirmed) | pending |
 
 ## References of record
 
