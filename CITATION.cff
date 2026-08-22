@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+message: "If you use zetaforge, please cite it as below."
+title: zetaforge
+type: software
+authors:
+  - name: shah
+    given-names: misbah
+repository-code: "https://github.com/smuddassirshah-cpu/zetaforge"
+license: MIT
+date-released: "2026-08-22"
+abstract: >-
+  An open-source engine for certified verification of the Riemann hypothesis
+  on the critical line: rigorous zeta evaluation, machine-checkable block
+  certificates, and an independent cross-toolchain verifier.

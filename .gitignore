@@ -1,0 +1,22 @@
+# secrets
+.env
+
+# data: object-store backed, never in git (PLAN.md section 5)
+checkpoints/
+data/raw/
+data/release/
+
+# build artefacts
+build/
+target/
+dist/
+__pycache__/
+*.py[cod]
+*.o
+*.so
+*.egg-info/
+.venv/
+
+# tooling
+.ipynb_checkpoints/
+.DS_Store
