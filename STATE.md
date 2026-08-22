@@ -7,7 +7,8 @@ Last updated: 2026-08-22
 | # | Stage | Status | Gate |
 |---|-------|--------|------|
 | 1 | Scaffolding + CI (incl. r2.1 patch, revs 1-3) | approved | 2026-08-22 |
-| 2 | core/ball+ffix+ntt | awaiting review | - |
+| 2 | core/ball+ffix+ntt (rev 1) | awaiting review | - |
+| 3 | theta (D1/D2 closed) | in progress | - |
 | 3 | theta | pending | - |
 | 4 | rs_main+rs_corr | pending | - |
 | 5 | multipoint+signs+turing | pending | - |
@@ -102,8 +103,12 @@ Re-measured attack ledger (fresh builds, verified binary timestamps):
 7. NTT exactness + benchmark honesty: schoolbook cross-checks pass; fitted slope 1.111, R^2=0.99995 over n=2^10..2^20, single-threaded Apple M2, conditions recorded in docs/benchmarks/ntt-bench.md.
 8. Cross-config determinism: Release vs Debug hashes identical locally; CI determinism-compare job enforces on every push.
 
+## Stage 3 attack ledger (partial, stage in progress)
+- Bound-tightening x0.9 via ZF_TEST_BOUND_SCALE: L3 policy-equality check FAILS under scale (exit=1), passes clean. Deterministic, seed-independent.
+- FLINT acb_lgamma anomaly (O2): discovered during oracle design; documented in MATHS.md open items; mpmath goldens adopted as primary theta oracle.
+
 ## Next action
-Await gate verdict on stage 2 rev 1. On approval: stage 3 (theta), with a
+Stage 3 continues after stage 2 rev 1 gate verdict. On approval: stage 3 (theta), with a
 gate condition carried forward from the stage 2 review: the D1-D2 truncation-
 bound oracle must be designed BEFORE the bound is written, and must not share
 truncation reasoning with the implementation - higher-precision evaluation
