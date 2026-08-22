@@ -3,8 +3,8 @@ message: "If you use zetaforge, please cite it as below."
 title: zetaforge
 type: software
 authors:
-  - name: shah
-    given-names: misbah
+  - family-names: Shah
+    given-names: Misbah
 repository-code: "https://github.com/smuddassirshah-cpu/zetaforge"
 license: MIT
 date-released: "2026-08-22"

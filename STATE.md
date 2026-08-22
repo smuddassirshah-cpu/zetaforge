@@ -6,7 +6,7 @@ Last updated: 2026-08-22
 ## Stages
 | # | Stage | Status | Gate |
 |---|-------|--------|------|
-| 1 | Scaffolding + CI | pending | - |
+| 1 | Scaffolding + CI (incl. r2.1 patch) | awaiting review | - |
 | 2 | core/ball+ffix+ntt | pending | - |
 | 3 | theta | pending | - |
 | 4 | rs_main+rs_corr | pending | - |
@@ -32,15 +32,22 @@ Running log. One line each: date, decision, reason, PLAN.md deviation? y/n.
 - 2026-08-22, Gourdon non-goal corrected: his first 10^13 zeros correspond to height ~2.44x10^12, already exceeded by Platt-Trudgian on both axes; v2 goal restated as height 10^13 outright, y
 - 2026-08-22, Complexity claim replaced with precise per-window statement citing Hiary Ann. Math. 174 (2011) and Odlyzko-Schoenhage; full-campaign exponents deferred to docs/MATHS.md derivation before stage 5, y
 - 2026-08-22, Signal section rewritten dual-register (research infra + trading research) with signal ladder of standalone stopping points at stages 2/3/5/6; CV bullet moved to progressive tense, y
+- 2026-08-22 (r2.1), GPU multiplier retracted from headline economics; cost table rebuilt with 2x isolation reserve and +25-30% storage/egress; stretch D=10^12 stated as NOT fitting $50k conservatively, gated on stage 7 $/Mzero verdict against a pinned 64-core reference node, y
+- 2026-08-22 (r2.1), Stage 9 ground truth split: (a-i) ordinate diff vs LMFDB-hosted Platt dataset (103800788359 zeros to 30610046000 at +/-2^-102), (a-ii) count consistency vs published endpoint at H0 within explicit S(T) bound; both hard preconditions for stage 10, y
+- 2026-08-22 (r2.1), Hiary citation split per review nit: amortised T^{1/4} result is Math. Comp. 80 (2011) 1785-1796; Ann. Math. 174 is the single-point T^{1/3} paper; OS year verified as Trans. AMS 309 (1988); MATHS.md made reference of record, y
+- 2026-08-22 (r2.1), Determinism contract scoped by config hash resolving the section 8 vs section 9 contradiction; archival tiered for Zenodo quota reality; data licence CC0; .env.example covers AWS/GCP/Lambda; CITATION.cff fixed to family-names/given-names, y
+- 2026-08-22 (r2.1), Reviewer recommendation adopted: r2.1 doc patch folded into stage 1 rather than a separate gate, n
 - 2026-08-22, Repo public from day one with stub README until Phase 3 rewrite, visibility is itself a signal and Phase 3 owns claims discipline, n
 
 ## Open questions
 Anything blocking or deferred, with the stage it affects.
 
-- Cloud provider selection (AWS vs GCP vs Lambda): deferred until the stage 8 pricing scan; secrets schema in .env.example supports either. Affects stages 8-9.
+- Cloud provider selection (AWS vs GCP vs Lambda): deferred until the stage 8 pricing scan; secrets schema in .env.example now covers all three. Affects stages 8-9.
 - RS validity threshold t0: pinned at stage 3 from Arias de Reyna's published bounds; EM path owns all heights below it. Affects stage 4.
+- GPU economic verdict ($/Mzero vs pinned 64-core reference): measured at stage 7, feeds ledger. Affects stretch D decision at stage 9(b).
+- Isolation cost factor: modelled with 2x reserve now, measured for real at stage 9(a-i). Affects final D.
 
 ## Next action
-Stage 1 (per PLAN.md r2): repository scaffolding and CI. CMake skeleton for
-core/, Cargo crate for verifier/, pyproject for orchestrate/analysis/tools,
-GitHub Actions matrix with gitleaks and pip-audit wired from first push.
+Await gate verdict on stage 1 (scaffolding + CI + r2.1 patch). On approval:
+stage 2, core/ball+ffix+ntt, introducing GMP/MPFR/Arb as first named
+dependencies with property tests against Arb.

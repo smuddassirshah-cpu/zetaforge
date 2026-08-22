@@ -1,5 +1,7 @@
 # zetaforge
 
+[![ci](https://github.com/smuddassirshah-cpu/zetaforge/actions/workflows/ci.yml/badge.svg)](https://github.com/smuddassirshah-cpu/zetaforge/actions/workflows/ci.yml)
+
 An open-source engine for certified verification of the Riemann hypothesis on
 the critical line. The target: extend the peer-reviewed verification frontier
 of Platt-Trudgian (height 3,000,175,332,800) with a rigorously computed new
