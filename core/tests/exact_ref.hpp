@@ -1,12 +1,27 @@
 #pragma once
 
-// Canonical integer-exact outward-rounding reference for tests.
+// Canonical test-side reference for outward/truncated double rounding of
+// exact dyadic values.
 //
-// Single source of truth shared by test_radius and test_ball_oracle. Every
-// mantissa product is widened to unsigned __int128 EXPLICITLY at the
-// multiplication site (a uint64*uint64 wraparound here once produced 36k
-// phantom failures by corrupting the reference, not the implementation).
-// Adjudication history lives in docs/DECISIONS.md.
+// Independence statement (stage 2 gate rev 1): this file must not share a
+// DERIVATION with zetaforge/radius.hpp. radius.hpp constructs its answer by
+// mantissa normalisation (mutate M into q against a mutated E, assemble).
+// This reference instead derives everything from two first-principles facts
+// that require no normalisation step and therefore cannot reproduce a
+// normalisation bug:
+//
+//   1. Bit-length identity: for positive dyadic v = M * 2^E with
+//      bl := bit_length(M), the containing binade exponent of v is exactly
+//      fe = E + bl - 1. No mutation, no scaling: direct consequence of
+//      2^(bl-1) <= M < 2^bl.
+//   2. Subnormal domain in raw units of 2^-1074: results below the normal
+//      range are computed as pure integer unit counts (ceiling or floor of
+//      M * 2^(E + 1074)), never through any (mantissa, exponent) pair.
+//
+// The single final conversion is one ceiling (or floor) division once the
+// quantisation exponent is known. A bug in radius.hpp's normalisation state
+// machine cannot be mirrored here because no such machine exists on this
+// side.
 
 #include <cmath>
 #include <cstdint>
@@ -55,100 +70,97 @@ inline int bit_length(unsigned __int128 v) {
   return n;
 }
 
-// Smallest double >= M * 2^E (M > 0). Overflow -> inf; below denorm_min ->
-// denorm_min. `sticky` folds lost low bits of an aligned sum into rounding.
-inline double round_up_positive(unsigned __int128 M, int E, bool sticky_in = false) {
-  if (M == 0 && !sticky_in) return 0.0;
-  const int bl = bit_length(M);
-  unsigned __int128 q;
-  bool rem = sticky_in;
-  if (bl > 53) {
-    const int s = bl - 53;
-    q = M >> s;
-    rem = rem || ((M & (((unsigned __int128)1 << s) - 1)) != 0);
-    E += s;
-  } else {
-    q = M << (53 - bl);
-    E -= 53 - bl;
-  }
-  if (rem) ++q;
-  if (q == ((unsigned __int128)1 << 53)) {
-    q >>= 1;
-    ++E;
-  }
-  const int fe = E + 52;
-  if (fe > 1023) return kInf;
-  if (fe >= -1022) {
-    const uint64_t bits = (static_cast<uint64_t>(fe + 1023) << 52) |
-                          static_cast<uint64_t>(q - ((unsigned __int128)1 << 52));
-    double out;
-    std::memcpy(&out, &bits, sizeof(out));
-    return out;
-  }
-  // Subnormal range: ceil(M * 2^E / 2^-1074) units.
-  const int sh = E + 1074;
-  unsigned __int128 units;
-  if (sh >= 127) {
-    return kInf;
-  }
-  if (sh >= 0) {
-    units = M << sh;
-  } else {
-    if (-sh > 127) {
-      // strictly below half denorm_min rounds up to denorm_min anyway
-      return std::numeric_limits<double>::denorm_min();
-    }
-    const unsigned __int128 d = (unsigned __int128)1 << (-sh);
-    units = (M + d - 1) / d;
-  }
-  if (units >= ((unsigned __int128)1 << 52)) return kInf;
-  const double out = std::ldexp(static_cast<double>(units), -1074);
-  return out > 0.0 ? out : std::numeric_limits<double>::denorm_min();
-}
-
-// Largest double <= M * 2^E (M > 0), truncating sticky bits. Used only as a
-// sound LOWER-bound floor for statistical suites: it can never exceed the
-// true value, so an implementation below it is provably unsound.
-inline double round_down_positive(unsigned __int128 M, int E) {
-  if (M == 0) return 0.0;
-  const int bl = bit_length(M);
-  unsigned __int128 q;
-  if (bl > 53) {
-    const int s = bl - 53;
-    q = M >> s;
-    E += s;
-  } else {
-    q = M << (53 - bl);
-    E -= 53 - bl;
-  }
-  const int fe = E + 52;
-  if (fe > 1023) return kInf;
-  if (fe >= -1022) {
-    const uint64_t bits = (static_cast<uint64_t>(fe + 1023) << 52) |
-                          static_cast<uint64_t>(q - ((unsigned __int128)1 << 52));
-    double out;
-    std::memcpy(&out, &bits, sizeof(out));
-    return out;
-  }
-  const int sh = E + 1074;
-  if (sh >= 0) {
-    if (sh > 127) return kInf;
-    const unsigned __int128 units = M << sh;
-    if (units >= ((unsigned __int128)1 << 52)) return kInf;
-    const double out = std::ldexp(static_cast<double>(units), -1074);
-    return out > 0.0 ? out : std::numeric_limits<double>::denorm_min();
-  }
-  if (-sh > 127) return 0.0;
-  const unsigned __int128 units = M >> (-sh);
-  if (units == 0) return 0.0;
-  if (units >= ((unsigned __int128)1 << 52)) return kInf;
-  const double out = std::ldexp(static_cast<double>(units), -1074);
-  return out > 0.0 ? out : std::numeric_limits<double>::denorm_min();
-}
-
 inline double compose(bool neg, unsigned __int128 q, int exp) {
   double m = static_cast<double>(q);
   return neg ? -std::ldexp(m, exp) : std::ldexp(m, exp);
+}
+
+namespace ref_detail {
+
+inline double assemble_normal(uint64_t mant_bits, int fe) {
+  const uint64_t bits = (static_cast<uint64_t>(fe + 1023) << 52) | mant_bits;
+  double out = 0;
+  std::memcpy(&out, &bits, sizeof(out));
+  return out;
+}
+
+}  // namespace ref_detail
+
+// Smallest double >= M * 2^E for M > 0. Sticky folds lost low bits of an
+// aligned sum into the ceiling decision; pass false for bare products.
+inline double round_up_positive(unsigned __int128 M, int E, bool sticky_in = false) {
+  const int bl = bit_length(M);
+  const int fe = E + bl - 1;          // fact 1: exact containing binade
+  if (fe > 1023) return kInf;
+
+  // Quantised grid value: v / ulp = M * 2^(E - (fe - 52)), ulp = 2^(fe-52)
+  const int d = fe - 52 - E;          // right-shift applied to M, >= 0 here
+  unsigned __int128 q;
+  bool sticky = sticky_in;
+  if (d <= 0) {
+    // v is an exact multiple of ulp already (M fits the 53-bit grid).
+    q = M << (-d);
+  } else {
+    q = M >> d;
+    sticky = sticky || ((M & (((unsigned __int128)1 << d) - 1)) != 0);
+  }
+  if (sticky) ++q;
+
+  if (fe >= -1022) {
+    if (q == ((unsigned __int128)1 << 53)) {
+      return ref_detail::assemble_normal(0, fe + 1);  // carried into next binade
+    }
+    return ref_detail::assemble_normal(static_cast<uint64_t>(q - ((unsigned __int128)1 << 52)), fe);
+  }
+
+  // Subnormal domain: pure integer units of 2^-1074 (fact 2).
+  // v = q * 2^(fe-52); units = ceil(v / 2^-1074) = ceil(q * 2^(fe+1022)).
+  // fe <= -1023 here so the shift exponent is negative: divide, and any
+  // nonzero remainder rounds up to one unit.
+  const int sh = -(fe + 1022);
+  unsigned __int128 units;
+  if (sh > 127) {
+    units = 1;
+  } else {
+    const unsigned __int128 dd = (unsigned __int128)1 << sh;
+    units = (q + dd - 1) / dd;
+  }
+  const double out = std::ldexp(static_cast<double>(units), -1074);
+  return out > 0.0 ? out : std::numeric_limits<double>::denorm_min();
+}
+
+// Largest double <= M * 2^E for M > 0 (truncating). Same independent
+// derivation with a floor division and no sticky bump.
+inline double round_down_positive(unsigned __int128 M, int E) {
+  const int bl = bit_length(M);
+  const int fe = E + bl - 1;
+  if (fe > 1023) return kInf;
+
+  const int d = fe - 52 - E;
+  unsigned __int128 q;
+  if (d <= 0) {
+    q = M << (-d);
+  } else {
+    q = M >> d;
+  }
+
+  if (fe >= -1022) {
+    if (q >= ((unsigned __int128)1 << 53)) {
+      return ref_detail::assemble_normal((1ULL << 52) - 1, fe + 1);  // truncated carry edge
+    }
+    return ref_detail::assemble_normal(static_cast<uint64_t>(q - ((unsigned __int128)1 << 52)), fe);
+  }
+
+  const int sh = -(fe + 1022);
+  unsigned __int128 units;
+  if (sh > 127) {
+    return 0.0;  // entire value rounds below the smallest subnormal step
+  }
+  const unsigned __int128 dd = (unsigned __int128)1 << sh;
+  units = q / dd;
+  if (units == 0) return 0.0;
+  const double out = std::ldexp(static_cast<double>(units), -1074);
+  return out > 0.0 ? out : std::numeric_limits<double>::denorm_min();
 }
 
 // Smallest double >= exact a+b for positive finite doubles.
@@ -165,9 +177,9 @@ inline double ref_up_add(double a, double b) {
   bool sticky = false;
   if (shift <= 127) {
     if (shift > 0) {
-      sticky = (static_cast<unsigned __int128>(lo.mant) &
-                (((unsigned __int128)1 << shift) - 1)) != 0;
-      sum += static_cast<unsigned __int128>(lo.mant) >> shift;
+      const unsigned __int128 mbw = static_cast<unsigned __int128>(lo.mant);
+      sticky = (mbw & (((unsigned __int128)1 << shift) - 1)) != 0;
+      sum += mbw >> shift;
     } else {
       sum += static_cast<unsigned __int128>(lo.mant);
     }

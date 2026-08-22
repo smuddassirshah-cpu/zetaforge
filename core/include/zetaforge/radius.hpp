@@ -94,23 +94,22 @@ inline double round_up_positive(unsigned __int128 M, int E,
     std::memcpy(&out, &bits, sizeof(out));
     return out;
   }
-  // Subnormal range: ceil(M * 2^E / 2^-1074) units of denorm_min.
-  const int sh = E + 1074;  // units = ceil(M * 2^sh)
+  // Subnormal range (fe < -1022 implies E < -1074 here): value = q * 2^E
+  // with (q, E) the coherent post-normalisation pair. Units of denorm_min =
+  // ceil(q / 2^sh) with sh = -(E + 1074) >= 0. Gate finding: this branch
+  // previously re-read pre-normalisation M against the mutated E, returning
+  // half-truths across the entire subnormal range.
+  const int sh = -(E + 1074);
   unsigned __int128 units;
-  if (sh >= 0) {
-    if (sh > 127 || (sh > 0 && M > (((unsigned __int128)1 << 127) >> sh))) {
-      return INFINITY;
-    }
-    units = M << sh;
+  if (sh > 127) {
+    // q < 2^53 <= 2^sh: the value is nonzero but rounds up to one unit.
+    units = 1;
   } else {
-    if (-sh > 127) {
-      return std::numeric_limits<double>::denorm_min();
-    }
-    const unsigned __int128 d = (unsigned __int128)1 << (-sh);
-    units = (M + d - 1) / d;
+    const unsigned __int128 d = (unsigned __int128)1 << sh;
+    units = (q + d - 1) / d;
   }
   if (units >= ((unsigned __int128)1 << 52)) {
-    return INFINITY;  // crossed into normal range through ceiling: escalate
+    return INFINITY;  // cannot occur from fe < -1022; defensive escalate
   }
   const double out = std::ldexp(static_cast<double>(units), -1074);
   return out > 0.0 ? out : std::numeric_limits<double>::denorm_min();

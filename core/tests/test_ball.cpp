@@ -93,5 +93,15 @@ int main() {
   }
   ZF_CHECK(threw);
 
+  // widen_radius contract: strictly increases the radius for positive extra
+  // (regression for the stage 2 gate defect where subnormal extras were no-ops).
+  Ball w = Ball::from_double(1.0, 128);
+  const double denorm = std::numeric_limits<double>::denorm_min();
+  w.widen_radius(denorm);
+  const double r1 = w.radius();
+  ZF_CHECK(r1 > 0.0);
+  w.widen_radius(denorm);
+  ZF_CHECK(w.radius() > r1);
+
   return ::zftest::failure_count() == 0 ? 0 : 1;
 }
