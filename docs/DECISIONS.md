@@ -81,6 +81,27 @@ interviewer's first follow-up is always "compared to what?".
   in r2). Rule going forward: every result cited from its own primary source;
   docs/MATHS.md is the single reference of record.
 
+### Stage 3 additions
+
+- 2026-08-22 (stage 3). Theta architecture: certified asymptotic series in
+  production (6 terms + safety-factored first-omitted remainder bound,
+  t >= 200 per Gabcke), mpmath-derived golden corpus as the empirical oracle
+  (20 heights, 40-digit values committed), NO FLINT lgamma layer. Rationale:
+  coefficient discovery and global Newton polish against mpmath loggamma
+  produced a series matching the oracle to <= 4e-62 absolute across the full
+  range, while FLINT 3.6.0's own acb_lgamma proved untrustworthy at the
+  required level (zero-width ball excluding truth by ~3.6e-15, precision-
+  independent) - logged as open item O2 for upstream report.
+- 2026-08-22 (stage 3). Coefficients stored as 30-digit decimal strings
+  parsed into mpfr at runtime, not doubles: double representation of c_1
+  alone injected a 5.7e-21 absolute error at t=200 - three orders above the
+  claimed radius. Found by the golden layer after primitive-layer tests all
+  passed.
+- 2026-08-22 (stage 3). Ball::from_centre_and_radius added as an explicit
+  escape hatch from finish_radius's double-ulp policy: theta carries
+  sub-double-granularity certified radii (~1.6e-32 at t=200) that the
+  default policy would destroy.
+
 ### Stage 2 rev 1 additions
 
 - 2026-08-22 (gate rev). up_add subnormal hole root cause accepted verbatim:
