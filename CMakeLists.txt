@@ -39,10 +39,19 @@ endif()
 
 # Stage 2 dependencies, all named in docs/PLAN.md section 4. Arb is consumed
 # as merged into FLINT 3 (see DECISIONS.md).
+#
+# MPFR/GMP resolve via pkg-config. FLINT does not: Ubuntu's libflint-dev
+# resolves headers through pkg-config but omits the link library, so FLINT is
+# located explicitly with name fallbacks instead.
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(MPFR REQUIRED IMPORTED_TARGET mpfr)
 pkg_check_modules(GMP REQUIRED IMPORTED_TARGET gmp)
-pkg_check_modules(FLINT REQUIRED IMPORTED_TARGET flint)
+find_path(FLINT_INCLUDE_DIR NAMES flint/flint.h)
+find_library(FLINT_LIBRARY NAMES flint libflint libflint3)
+if(NOT FLINT_INCLUDE_DIR OR NOT FLINT_LIBRARY)
+  message(FATAL_ERROR "FLINT 3 not found: install libflint-dev / brew install flint")
+endif()
+message(STATUS "FLINT: ${FLINT_LIBRARY} (+ ${FLINT_INCLUDE_DIR})")
 
 enable_testing()
 add_subdirectory(core)
