@@ -24,7 +24,7 @@ inline int& failure_count() {
 }
 
 inline uint64_t& current_seed() {
-  static uint64_t seed = [] {
+  static uint64_t seed = []() -> uint64_t {
     const char* env = std::getenv("ZFTEST_SEED");
     if (env != nullptr) {
       return std::strtoull(env, nullptr, 16);
