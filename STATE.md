@@ -7,7 +7,7 @@ Last updated: 2026-08-22
 | # | Stage | Status | Gate |
 |---|-------|--------|------|
 | 1 | Scaffolding + CI (incl. r2.1 patch, revs 1-3) | approved | 2026-08-22 |
-| 2 | core/ball+ffix+ntt | in progress | - |
+| 2 | core/ball+ffix+ntt | awaiting review | - |
 | 3 | theta | pending | - |
 | 4 | rs_main+rs_corr | pending | - |
 | 5 | multipoint+signs+turing | pending | - |
@@ -70,7 +70,16 @@ Build against these; run them on ourselves before the gate.
 7. NTT exactness at boundary lengths; benchmark honesty: fitted slope over an n-range with hardware noted and single-threaded conditions stated, not three timings in a table.
 8. Cross-configuration determinism: Release and Debug bit-identical ball results; first stage where -ffp-contract=off is load-bearing.
 
+## Stage 2 attack ledger (pre-registered items vs outcomes)
+1. Sabotage radius rounding: statistical oracle suite blind (0 failures, predicted); bit-exact reference detects instantly. Division of labour confirmed.
+2. Boundary hunting: cancellation/pow2/subnormal generators in oracle suite; boundary non-enclosure would fail overlap check.
+3. False-exact: subnormal-floor sabotage detected by targeted case (up_mul(denorm,denorm)==denorm_min fails when floor removed).
+4. Seed reproducibility: same seed -> byte-identical failure output; different seed -> different set.
+5. Oracle independence: exact_ref.hpp shares no code with radius.hpp; floors use directed lower bounds only.
+6. ffix under-reporting: truncation-accounting sabotage detected by min_bound assertion.
+7. NTT exactness + benchmark honesty: schoolbook cross-checks pass; fitted slope 1.111, R^2=0.99995 over n=2^10..2^20, single-threaded Apple M2, conditions recorded in docs/benchmarks/ntt-bench.md.
+8. Cross-config determinism: Release vs Debug hashes identical locally; CI determinism-compare job enforces on every push.
+
 ## Next action
-Await formal "approved, continue" on stage 1. On approval: stage 2,
-core/ball+ffix+ntt, introducing GMP/MPFR/Arb as first named dependencies with
-property tests against Arb, honouring the three inherited obligations above.
+Await gate verdict on stage 2. On approval: stage 3 (theta), per PLAN section 11,
+with docs/MATHS.md obligations D1-D2 closing there.
