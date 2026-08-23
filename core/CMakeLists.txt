@@ -1,6 +1,7 @@
 add_library(zetaforge_core STATIC src/ball.cpp src/em_eval.cpp src/theta.cpp)
 target_include_directories(zetaforge_core PUBLIC include)
 target_compile_features(zetaforge_core PUBLIC cxx_std_23)
+option(ZF_SABOTAGE_HOOKS "Compile-time sabotage hooks (NEVER enable in production)" OFF)
 target_link_libraries(zetaforge_core PUBLIC PkgConfig::MPFR PkgConfig::GMP)
 
 add_executable(test_ball tests/test_ball.cpp)
@@ -44,6 +45,9 @@ target_link_libraries(test_zeta PRIVATE zetaforge_core ${FLINT_LIBRARY})
 target_include_directories(test_zeta PRIVATE ${FLINT_INCLUDE_DIR})
 add_test(NAME zeta COMMAND test_zeta)
 
+if(ZF_SABOTAGE_HOOKS)
+  target_compile_definitions(test_theta PRIVATE ZF_SABOTAGE_HOOKS)
+endif()
 add_executable(test_theta tests/test_theta.cpp)
 target_link_libraries(test_theta PRIVATE zetaforge_core)
 target_compile_definitions(test_theta PRIVATE

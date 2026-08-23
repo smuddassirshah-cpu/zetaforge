@@ -106,14 +106,15 @@ Ball theta_certified(double t, mpfr_prec_t prec) {
   const double coeff_slack = std::ldexp(1.0, static_cast<int>(1 - prec))
                              * ((1.0 / 48.0) / t) * (1.0 + 1e-3);
   double radius = kThetaSafety * rem_base + mpfr_slack + coeff_slack;
+#ifdef ZF_SABOTAGE_HOOKS
   {
-    // Enclosure-sabotage hook for the gate attack battery. Production must
-    // run with this unset (scale = 1.0).
+    // Sabotage hook: compile-time gated, never active in production.
     const char* e = std::getenv("ZF_IMPL_RADIUS_SCALE");
     if (e != nullptr) {
       radius *= std::strtod(e, nullptr);
     }
   }
+#endif
   radius = inflate(radius);
 
   return Ball::from_centre_and_radius(acc.v, radius);
