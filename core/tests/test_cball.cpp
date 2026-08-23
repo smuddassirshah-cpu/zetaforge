@@ -53,8 +53,7 @@ Pt sample_corner(const CBall& b) {
 }
 
 CBall make_ball(mpfr_prec_t p, double re_c, double im_c, double rr, double ri) {
-  CBall b;
-  b.init(p);
+  CBall b(p);
   mpfr_set_d(b.re, re_c, MPFR_RNDN);
   mpfr_set_d(b.im, im_c, MPFR_RNDN);
   b.rr = std::fabs(rr);
@@ -123,6 +122,13 @@ int main() {
                       prod.ri)) {
               std::printf("C1FAIL are=%d aim=%d bre=%d bim=%d s=%d%d%d%d\n",
                           are, aim, bre, bim, s1, s2, s3, s4);
+              std::printf("  prod=(%.17g,%.17g) rr=%.17g ri=%.17g\n",
+                          mpfr_get_d(prod.re, MPFR_RNDN),
+                          mpfr_get_d(prod.im, MPFR_RNDN), prod.rr, prod.ri);
+              std::printf("  tre=%.17g tim=%.17g d_re=%.17g d_im=%.17g\n",
+                          tre_d, tim_d,
+                          std::fabs(mpfr_get_d(prod.re, MPFR_RNDN) - tre_d),
+                          std::fabs(mpfr_get_d(prod.im, MPFR_RNDN) - tim_d));
               ++containment_failures;
             }
           }

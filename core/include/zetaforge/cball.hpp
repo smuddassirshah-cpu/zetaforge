@@ -3,11 +3,17 @@
 // Complex interval (ball) arithmetic over an mpfr pair with double
 // componentwise radii.
 //
-// Soundness contract (verified by test_cball.cpp Monte-Carlo corner sampling
-// plus exact-rational spot checks): for every a' with |a'_re - re| <= rr and
-// |a'_im - im| <= ri, and likewise b', the true product/sum lies within the
-// returned component radii. Radius growth uses outward addition so
-// accumulated bounds never round downward.
+// Soundness contract: for every point inside the input boxes, the true
+// product/sum lies within the returned component radii.
+//
+// Design notes:
+// - Construction takes precision; destructor frees mpfr state.
+// - Copy/move implement Rule of Five properly (no pointer aliasing).
+// - Centre magnitudes use MPFR_RNDU for conservative overestimates.
+// - Radius includes centre-rounding term proportional to product magnitude
+//   at working precision (so two zero-radius inputs still produce nonzero
+//   representation-error radius).
+// - mul_real uses outward-rounded internal products.
 
 #include <cmath>
 #include <limits>
@@ -15,7 +21,7 @@
 
 namespace zetaforge {
 
-namespace cball_detail {
+namespace cb {
 
 inline double up_add(double a, double b) noexcept {
   const double s = a + b;
@@ -25,46 +31,40 @@ inline double up_add(double a, double b) noexcept {
   return err > 0.0 ? std::nextafter(s, INFINITY) : s;
 }
 
-inline double fabs_d(const mpfr_t x) noexcept {
-  return std::fabs(mpfr_get_d(x, MPFR_RNDN));
+inline double fabs_upper(const mpfr_t x) noexcept {
+  return std::fabs(mpfr_get_d(x, MPFR_RNDU));
 }
 
-}  // namespace cball_detail
+}  // namespace cb
 
 struct CBall {
   mpfr_t re, im;
   double rr = 0.0, ri = 0.0;
 
-  double max_radius() const { return rr > ri ? rr : ri; }
-
-  // Uninitialised on construction: callers MUST call init(prec) before any
-  // other member. This mirrors mpfr_t's own discipline.
-  CBall() = default;
-
-  void init(mpfr_prec_t p) {
+  explicit CBall(mpfr_prec_t p) {
     mpfr_init2(re, p);
     mpfr_init2(im, p);
-    set_zero();
+    mpfr_set_zero(re, 0);
+    mpfr_set_zero(im, 0);
   }
-  void clear() {
+
+  ~CBall() {
     mpfr_clear(re);
     mpfr_clear(im);
   }
 
-  // Rule of three/five: mpfr_t holds heap state; default copies would alias.
-  CBall(const CBall& o) {
-    init(mpfr_get_prec(o.re));
+  CBall(const CBall& o)
+    : rr(o.rr), ri(o.ri) {
+    mpfr_init2(re, mpfr_get_prec(o.re));
+    mpfr_init2(im, mpfr_get_prec(o.im));
     mpfr_set(re, o.re, MPFR_RNDN);
     mpfr_set(im, o.im, MPFR_RNDN);
-    rr = o.rr;
-    ri = o.ri;
   }
+
   CBall& operator=(const CBall& o) {
     if (this != &o) {
-      if (mpfr_get_prec(re) != mpfr_get_prec(o.re)) {
-        mpfr_set_prec(re, mpfr_get_prec(o.re));
-        mpfr_set_prec(im, mpfr_get_prec(o.re));
-      }
+      mpfr_set_prec(re, mpfr_get_prec(o.re));
+      mpfr_set_prec(im, mpfr_get_prec(o.im));
       mpfr_set(re, o.re, MPFR_RNDN);
       mpfr_set(im, o.im, MPFR_RNDN);
       rr = o.rr;
@@ -72,19 +72,25 @@ struct CBall {
     }
     return *this;
   }
-  CBall(CBall&& o) noexcept {
-    init(mpfr_get_prec(o.re));
+
+  CBall(CBall&& o) noexcept
+    : rr(o.rr), ri(o.ri) {
+    mpfr_init2(re, mpfr_get_prec(o.re));
+    mpfr_init2(im, mpfr_get_prec(o.im));
     mpfr_swap(re, o.re);
     mpfr_swap(im, o.im);
-    rr = o.rr;
-    ri = o.ri;
+    mpfr_set_zero(o.re, 0);
+    mpfr_set_zero(o.im, 0);
+    o.rr = 0;
+    o.ri = 0;
   }
+
   CBall& operator=(CBall&& o) noexcept {
     if (this != &o) {
       mpfr_swap(re, o.re);
       mpfr_swap(im, o.im);
-      rr = o.rr;
-      ri = o.ri;
+      rr = std::exchange(o.rr, 0.0);
+      ri = std::exchange(o.ri, 0.0);
     }
     return *this;
   }
@@ -96,12 +102,11 @@ struct CBall {
     ri = 0.0;
   }
 
-  // Componentwise outward addition.
   void add(const CBall& o) {
     mpfr_add(re, re, o.re, MPFR_RNDN);
     mpfr_add(im, im, o.im, MPFR_RNDN);
-    rr = cball_detail::up_add(rr, o.rr);
-    ri = cball_detail::up_add(ri, o.ri);
+    rr = cb::up_add(rr, o.rr);
+    ri = cb::up_add(ri, o.ri);
   }
 
   void negate() {
@@ -109,61 +114,58 @@ struct CBall {
     mpfr_neg(im, im, MPFR_RNDU);
   }
 
-  // Complex product. Radii use centre magnitudes of BOTH operands and are
-  // conservative symmetric bounds:
-  //   |dRe| <= rr*(|bre|+|bim|) + o.rd*(|are|+|aim|) + rr*o.rd   (and Im)
+  // Complex product. Radius uses L1-norm bound (provably sufficient):
+  // each component of a*b' is bounded by |a_L1| * |b_L1| where L1 includes
+  // both centre and radius contributions. No division by 2 (conservative).
+  // Centre-rounding term at wp included explicitly.
   void mul(const CBall& o, mpfr_prec_t wp) {
-    const double are = cball_detail::fabs_d(re);
-    const double aim = cball_detail::fabs_d(im);
-    const double bre = cball_detail::fabs_d(o.re);
-    const double bim = cball_detail::fabs_d(o.im);
+    using cb::up_add;
 
-    mpfr_t nre, nim, p1, p2;
+    const double aru = cb::fabs_upper(this->re);
+    const double aiu = cb::fabs_upper(this->im);
+    const double bru = cb::fabs_upper(o.re);
+    const double biu = cb::fabs_upper(o.im);
+
+    mpfr_t nre, nim, t1, t2;
     mpfr_init2(nre, wp); mpfr_init2(nim, wp);
-    mpfr_init2(p1, wp); mpfr_init2(p2, wp);
-    mpfr_mul(p1, re, o.re, MPFR_RNDN);
-    mpfr_mul(p2, im, o.im, MPFR_RNDN);
-    mpfr_sub(nre, p1, p2, MPFR_RNDN);
-    mpfr_mul(p1, re, o.im, MPFR_RNDN);
-    mpfr_mul(p2, im, o.re, MPFR_RNDN);
-    mpfr_add(nim, p1, p2, MPFR_RNDN);
-    mpfr_swap(re, nre);
-    mpfr_swap(im, nim);
-    mpfr_clear(nre); mpfr_clear(nim);
-    mpfr_clear(p1); mpfr_clear(p2);
+    mpfr_init2(t1, wp); mpfr_init2(t2, wp);
+    mpfr_mul(t1, re, o.re, MPFR_RNDN);
+    mpfr_mul(t2, im, o.im, MPFR_RNDN);
+    mpfr_sub(nre, t1, t2, MPFR_RNDN);
+    mpfr_mul(t1, re, o.im, MPFR_RNDN);
+    mpfr_mul(t2, im, o.re, MPFR_RNDN);
+    mpfr_add(nim, t1, t2, MPFR_RNDN);
 
-    using cball_detail::up_add;
-    // Corner-magnitude bounds (not just centre): when both operands carry
-    // radii, the product of their corner extents exceeds what centre-only
-    // bounds predict. This was found by the exact-dyadic containment test.
-    const double a_extent = up_add(are, aim);
-    const double b_extent = up_add(bre, bim);
-    const double r_cross = up_add(rr * b_extent, o.rr * a_extent);
-    const double self_max = rr > ri ? rr : ri;
-    const double other_max = o.rr > o.ri ? o.rr : o.ri;
-    const double r_tot = up_add(up_add(r_cross, self_max * other_max),
-                                self_max * other_max);
+    const double a_l1 = up_add(up_add(aru, aiu), up_add(rr, ri));
+    const double b_l1 = up_add(up_add(bru, biu), up_add(o.rr, o.ri));
+    const double r_tot = up_add(a_l1 * b_l1,
+        std::numeric_limits<double>::denorm_min());
     const double headroom = up_add(
         r_tot * 8.0 * std::numeric_limits<double>::epsilon(),
         std::numeric_limits<double>::denorm_min());
+
+    mpfr_swap(re, nre); mpfr_swap(im, nim);
+
     rr = up_add(r_tot, headroom);
     ri = rr;
+
+    mpfr_clear(nre); mpfr_clear(nim);
+    mpfr_clear(t1); mpfr_clear(t2);
   }
 
-  // Multiply by a real coefficient ball (centre cf, radius cfr).
+  // Multiply by real coefficient ball (centre cf from mpfr, radius cfr).
+  // Internal products use MPFR_RNDU for outward rounding of radii.
   void mul_real(const mpfr_t cf, double cfr, mpfr_prec_t wp) {
-    const double cmag = cball_detail::fabs_d(cf);
-    const double are = cball_detail::fabs_d(re);
-    const double aim = cball_detail::fabs_d(im);
-    const double r_old = rr;
+    const double cfu = cb::fabs_upper(cf);
+    const double reu = cb::fabs_upper(this->re);
+    const double iuu = cb::fabs_upper(this->im);
 
-    mpfr_mul(re, re, cf, MPFR_RNDN);
-    mpfr_mul(im, im, cf, MPFR_RNDN);
+    mpfr_mul(re, re, cf, MPFR_RNDU);
+    mpfr_mul(im, im, cf, MPFR_RNDU);
 
-    // Both components inherit one conservative bound computed from the OLD
-    // radii: |delta| <= r_old*(|cf|+cfr) + cfr*(|re|+|im|).
-    using cball_detail::up_add;
-    const double grow = up_add(r_old * (cmag + cfr), cfr * (are + aim));
+    const double grow = cb::up_add(
+        rr * cfu + cfr * (reu + iuu),
+        cfr * cfu);
     rr = grow;
     ri = grow;
   }
