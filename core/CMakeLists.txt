@@ -39,6 +39,11 @@ add_executable(test_radius_invariants tests/test_radius_invariants.cpp)
 target_link_libraries(test_radius_invariants PRIVATE zetaforge_core)
 add_test(NAME radius_invariants COMMAND test_radius_invariants)
 
+add_executable(test_zeta tests/test_zeta.cpp)
+target_link_libraries(test_zeta PRIVATE zetaforge_core ${FLINT_LIBRARY})
+target_include_directories(test_zeta PRIVATE ${FLINT_INCLUDE_DIR})
+add_test(NAME zeta COMMAND test_zeta)
+
 add_executable(test_theta tests/test_theta.cpp)
 target_link_libraries(test_theta PRIVATE zetaforge_core)
 target_compile_definitions(test_theta PRIVATE
