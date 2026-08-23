@@ -4,11 +4,13 @@
 #include <cstdlib>
 #include <stdexcept>
 
+#include <gmp.h>
+
 namespace zetaforge {
 
 namespace {
 
-constexpr int kBernMaxK = 10;  // B_2 .. B_20 exact rationals
+constexpr int kBernMaxK = 10;
 constexpr long long kBNum[kBernMaxK] = {
     1, -1, 1, -1, 5, -691, 7, -3617, 43867, -174611};
 constexpr long long kBDen[kBernMaxK] = {
@@ -30,10 +32,15 @@ ZResult zeta_em(double t, mpfr_prec_t prec) {
         "zeta_em above kEmTMax: RS path with certified correction owns "
         "this range");
   }
-  // D8 derivation required before implementation lands. See MATHS.md.
+  int M = 8 + m_delta_env();
+  if (M < 2 || M > kBernMaxK) {
+    throw std::invalid_argument("EM correction order out of range");
+  }
+  // Implementation requires D8 derivation (sub-t0 theta) and EM tail
+  // remainder bound with monotone check. See MATHS.md.
   throw std::runtime_error(
-      "zeta_em: EM evaluation not yet implemented; requires D8 derivation "
-      "(certified theta below t0) and EM tail remainder bound");
+      "zeta_em: not yet implemented; blocked on D8 sub-t0 derivation "
+      "and EM tail remainder monotone-check derivation");
 }
 
 }  // namespace zetaforge
