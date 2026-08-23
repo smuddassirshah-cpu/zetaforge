@@ -1,4 +1,4 @@
-add_library(zetaforge_core STATIC src/ball.cpp)
+add_library(zetaforge_core STATIC src/ball.cpp src/em_eval.cpp src/theta.cpp)
 target_include_directories(zetaforge_core PUBLIC include)
 target_compile_features(zetaforge_core PUBLIC cxx_std_23)
 target_link_libraries(zetaforge_core PUBLIC PkgConfig::MPFR PkgConfig::GMP)
@@ -39,7 +39,7 @@ add_executable(test_radius_invariants tests/test_radius_invariants.cpp)
 target_link_libraries(test_radius_invariants PRIVATE zetaforge_core)
 add_test(NAME radius_invariants COMMAND test_radius_invariants)
 
-add_executable(test_theta tests/test_theta.cpp src/theta.cpp)
+add_executable(test_theta tests/test_theta.cpp)
 target_link_libraries(test_theta PRIVATE zetaforge_core)
 target_compile_definitions(test_theta PRIVATE
   THETA_GOLDEN_CSV="${CMAKE_SOURCE_DIR}/docs/golden/theta_golden.csv")
