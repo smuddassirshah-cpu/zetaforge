@@ -15,6 +15,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
+#include <stdexcept>
 
 #include "zetaforge/ball.hpp"
 #include "zetaforge/em_eval.hpp"

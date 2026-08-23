@@ -17,6 +17,7 @@
 
 #include <cmath>
 #include <limits>
+#include <utility>
 #include <mpfr.h>
 
 namespace zetaforge {
