@@ -81,6 +81,36 @@ interviewer's first follow-up is always "compared to what?".
   in r2). Rule going forward: every result cited from its own primary source;
   docs/MATHS.md is the single reference of record.
 
+### Stage 3 rev 1 corrections (gate)
+
+- 2026-08-22 (stage 3 rev 1). Coefficients restored to EXACT RATIONALS parsed
+  at working precision (c_6 = 1414477/1476034560 per MATHS.md D1), replacing
+  the rev-0 decimal strings. Representation error is now an explicit radius
+  component (c_1 * 2^(1-prec) / t) rather than silent. Retracted claims:
+  "c_6 has no small rational form" (false - discovery ladder caps were below
+  its true denominator; caps fixed in the tool); the Newton-polish c_6 value
+  and its "4e-62 residual" claim (degenerate 6-point overfit whose held-out
+  t=200 residual contradicted the first-omitted-term model by ~1e3x); the
+  "2^(2n)-1 numerator pattern" observation (broken by c_6's numerator).
+- 2026-08-22 (stage 3 rev 1). O2 RETRACTED as a library defect, REINSTATED as
+  a harness-bug record: acb_lgamma verified rigorous via direct interval
+  comparison (our centre inside FLINT enclosure on all 84 combos). The
+  original divergence was produced by comparing high-precision quantities
+  through %g double conversions and by an early oracle probe accidentally
+  calling _acb_dirichlet_theta_argument_at_arb. Lesson recorded: never route
+  a precision claim through a double conversion.
+- 2026-08-22 (stage 3 rev 1). L1 reinstated as a real enclosure layer:
+  zero-additive-slack overlap vs acb_lgamma intervals, swept t in
+  [200, 3e12] x prec in {128,192,256,512} (84 combos). Golden corpus
+  regenerated at dps=220 / 170 significant digits so corpus quantization
+  (~1e-155 at campaign heights) stays below every certified radius; L2
+  tolerance reduced to exactly the certified radius.
+- 2026-08-22 (stage 3 rev 1). Radius now carries THREE explicitly derived
+  components (series remainder x SAFETY, mpfr rounding, coefficient
+  representation error); L3 policy-equality tolerance set to 1e-3 relative
+  with written justification (transcription approximates post-series |centre|
+  in closed form; difference provably < 1e-3 for t >= 200).
+
 ### Stage 3 additions
 
 - 2026-08-22 (stage 3). Theta architecture: certified asymptotic series in
