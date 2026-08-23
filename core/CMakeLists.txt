@@ -45,3 +45,7 @@ target_compile_definitions(test_theta PRIVATE
   THETA_GOLDEN_CSV="${CMAKE_SOURCE_DIR}/docs/golden/theta_golden.csv")
 
 add_test(NAME theta COMMAND test_theta)
+
+add_executable(test_cball tests/test_cball.cpp)
+target_link_libraries(test_cball PRIVATE zetaforge_core)
+add_test(NAME cball COMMAND test_cball)
