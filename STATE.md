@@ -9,7 +9,7 @@ Last updated: 2026-08-22
 | 1 | Scaffolding + CI (revs 1-3) | approved | 2026-08-22 |
 | 2 | core/ball+ffix+ntt (rev 1) | approved | 2026-08-22 |
 | 3 | theta (D1/D2 closed) | approved | 2026-08-22 |
-| 4 | rs_main+rs_corr+em_eval | in progress | - |
+| 4 | rs_main+rs_corr+em_eval | awaiting review | - |
 | 5 | multipoint+signs+turing | pending | - |
 | 6 | verifier (Rust) | pending | - |
 | 7 | gpu + parity | pending | - |
