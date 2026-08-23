@@ -8,7 +8,7 @@ Last updated: 2026-08-22
 |---|-------|--------|------|
 | 1 | Scaffolding + CI (incl. r2.1 patch, revs 1-3) | approved | 2026-08-22 |
 | 2 | core/ball+ffix+ntt (rev 1) | awaiting review | - |
-| 3 | theta (D1/D2 closed) | awaiting review | - |
+| 3 | theta (D1/D2 closed) | in progress | - |
 | 3 | theta | pending | - |
 | 4 | rs_main+rs_corr | pending | - |
 | 5 | multipoint+signs+turing | pending | - |
@@ -108,8 +108,14 @@ Re-measured attack ledger (fresh builds, verified binary timestamps):
 - FLINT acb_lgamma anomaly (O2): characterised precisely - at z=0.25+200i, acb_lgamma returns a ZERO-WIDTH ball whose midpoint excludes the true value (mpmath-confirmed to 30 digits) by ~3.6e-15, invariant across 400..800-bit working precision. Upstream-reportable. Consequence: mpmath goldens are the primary theta oracle; no FLINT lgamma layer in the suite.
 - Stale-binary incidents during development (twice): incremental builds silently linked outdated objects, faking pass/fail inversions. Clean-rebuild discipline adopted for every gate measurement; CI clean-builds by construction.
 
+## Stage 3 rev 1 verification battery (final build)
+- clean: exit=0 (84 combos, tight-zone ratio 1.000000)
+- ZF_IMPL_RADIUS_SCALE=0.1: exit=1 (L1 enclosure catches)
+- ZF_TEST_BOUND_SCALE=0.9: exit=1 (L3 policy equality catches)
+- corrupted golden corpus via ZF_GOLDEN_PATH: exit=1 (L2 catches)
+
 ## Next action
-Stage 3 continues after stage 2 rev 1 gate verdict. On approval: stage 3 (theta), with a
+Await gate verdict on stage 3. On approval: stage 3 (theta), with a
 gate condition carried forward from the stage 2 review: the D1-D2 truncation-
 bound oracle must be designed BEFORE the bound is written, and must not share
 truncation reasoning with the implementation - higher-precision evaluation

@@ -40,7 +40,7 @@ def discover(n_terms, t_discovery):
         ck = resid * t ** (2 * k - 1)
         exact = exact_fraction(ck)
         f = None
-        for cap in (10**4, 10**6, 10**8, 10**10):
+        for cap in (10**4, 10**6, 10**8, 10**9, 10**10):
             cand = exact.limit_denominator(cap)
             # Acceptance compares against the EXPECTED tail size (peel leaves
             # the next terms behind), not against zero: c_1 legitimately

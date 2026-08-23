@@ -6,12 +6,12 @@ values. The C++ suite asserts |centre - golden| <= radius + tolerance."""
 import mpmath as mp
 import os
 
-mp.mp.dps = 90
+mp.mp.dps = 220
 
 HEIGHTS = [
     200, 250, 315, 500, 800, 1290, 2000, 5000,
     1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11,
-    1e12, 2.5e12, 5e12, 1e13,
+    1e12, 2.5e12, 3e12, 5e12, 1e13,
 ]
 
 
@@ -25,11 +25,11 @@ def main():
                        "theta_golden.csv")
     os.makedirs(os.path.dirname(out), exist_ok=True)
     with open(out, "w") as fh:
-        fh.write("# theta(t) reference values, mpmath loggamma, dps=90\n")
+        fh.write("# theta(t) reference values, mpmath loggamma, dps=220 (values carry ~170 significant digits)\n")
         fh.write("t,value\n")
         for h in HEIGHTS:
             v = theta_ref(mp.mpf(str(h)))
-            fh.write(f"{h},{mp.nstr(v, 45)}\n")
+            fh.write(f"{h},{mp.nstr(v, 170)}\n")
     print("wrote", out)
 
 

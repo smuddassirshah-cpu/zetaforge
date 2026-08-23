@@ -10,7 +10,8 @@ claim whose status here is "pending" past the stage that needs it.
 
 | ID | Obligation | Needed by | Status |
 |---|---|---|---|
-| D1 | theta(t) truncation bound: series theta = ThetaMain(t) + sum_{k=1..6} c_k t^(1-2k); remainder claimed <= 4*(c7 + c8/t^2)/t^13 for t >= 200. Coefficients c1..c7 are exact rationals discovered against mpmath loggamma (tools/discover_theta_coefficients.py): 1/48, 7/5760, 31/80640, 127/430080, 511/1216512, 1414477/1476034560, 8191/2555904. Factor 4 is deliberate safety headroom standing in for Gabcke's exact per-term constants (open item O1: transcribe them to shrink to ~1x). Empirical support: suite sweep shows tight-zone error below the unsafety-factored bound at every tested height; golden corpus (20 heights incl t=200 and 1e13) enclosed within radius + 1e-30 | stage 3 | done (provisional constant, see O1) |
+| D1 | theta(t) truncation bound: series theta = ThetaMain(t) + sum_{k=1..6} c_k t^(1-2k); remainder claimed <= 4*(c7 + c8/t^2)/t^13 for t >= 200. Coefficients c1..c6 are exact rationals parsed at working precision from the D1 table below; c7 = 8191/2555904 is the first omitted magnitude. Factor 4 is deliberate safety headroom standing in for Gabcke's exact per-term constants (open item O1). Radius also carries two explicit secondary terms: mpfr rounding at working precision (centre_scale * 2^(2-prec)) and coefficient representation error (c_1 * 2^(1-prec) / t). Empirical validation: 84-combo sweep (21 heights x 4 precisions) shows tight-zone error/bound ratio <= 1.000000 with zero additive slack vs mpmath-derived goldens parsed at 1200 bits | stage 3 rev 1 | done (provisional constant, see O1) |
+| D1a | Coefficient provenance: c_1..c_5 are exact small rationals; c_6 = 1414477/1476034560 exactly (MATHS.md D1 table is canonical). A Newton-polish pass suggested a different c_6 and "no small rational form"; that pass was a degenerate 6-point fit whose held-out agreement was coincidental, and its residuals contradicted the first-omitted-term model by ~1e3x at t=200 - diagnosed as overfit, retracted. The original discovery ladder failed to recover c_6's rational because limit_denominator caps (<= 10^8) sat below the true denominator (~1.476e9); caps extended | stage 3 rev 1 | done |
 | D2 | RS validity threshold t0 = 200 pinned from Gabcke 1979 Thm 1 p.139 as quoted in Arias de Reyna Math. Comp. 80 (2011); NOT from observed agreement. Below t0 theta_certified throws; EM path owns the range (stage 4). Working precision derived: required delta_theta <= 1e-10 rad at campaign height T=3e12 where theta ~ 3.7e13 and theta' ~ 13.4 (so phase error maps to delta_t ~ 7.5e-12, far inside isolation tolerance); mpfr centre precision must satisfy theta * 2^(1-p) <= delta_theta -> p >= log2(7.4e23) ~= 79.3 -> 128-bit working precision chosen with multi-operation headroom; certified radius carries the mpfr rounding term explicitly | stage 3 | done |
 | D3 | Correction-series remainder bound at campaign precision | stage 4 | pending |
 | D4 | Multipoint window scheduling: total-campaign exponent derived from the per-window results below; no asserted exponents | stage 5 precondition | pending |
@@ -55,7 +56,17 @@ claim whose status here is "pending" past the stage that needs it.
 - O1: transcribe Gabcke's explicit per-term remainder constants (dissertation
   tables quoted in Arias de Reyna 2011) to replace the factor-4 headroom in
   D1's bound with an exact constant.
-- O2: cross-library anomaly logged - FLINT 3.6.0 acb_lgamma vs mpmath
+- O2 (RETRACTED as library defect; REINSTATED as harness-bug record): the
+  reported acb_lgamma-vs-mpmath divergence was a double-conversion artifact of
+  the measurement harness - FLINT interval midpoints were printed through
+  %g doubles while reference values were compared at full precision, and one
+  early oracle probe accidentally called _acb_dirichlet_theta_argument_at_arb
+  (which returns pi*t^2-scale quantities for this call pattern), poisoning the
+  first comparison set. acb_lgamma itself verified rigorous: direct interval
+  comparison after parse-precision fixes shows our centre inside the FLINT
+  enclosure at every (t, prec) combination (84 combos). Reproduction of the
+  false positive: compare arb midpoint via mpfr_get_d against a full-precision
+  reference and read the difference at double granularity.
   loggamma disagree by ~2.3e-14 absolute at z = 0.25 + 100i regardless of
   working precision (400..800 bits). Our implementation agrees with mpmath.
   Worth an upstream report before any future reliance on acb_lgamma at high
