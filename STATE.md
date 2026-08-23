@@ -1,16 +1,15 @@
 # Build state
 
-Current stage: 2
+Current stage: 4
 Last updated: 2026-08-22
 
 ## Stages
 | # | Stage | Status | Gate |
 |---|-------|--------|------|
-| 1 | Scaffolding + CI (incl. r2.1 patch, revs 1-3) | approved | 2026-08-22 |
-| 2 | core/ball+ffix+ntt (rev 1) | awaiting review | - |
-| 3 | theta (D1/D2 closed) | in progress | - |
-| 3 | theta | pending | - |
-| 4 | rs_main+rs_corr | pending | - |
+| 1 | Scaffolding + CI (revs 1-3) | approved | 2026-08-22 |
+| 2 | core/ball+ffix+ntt (rev 1) | approved | 2026-08-22 |
+| 3 | theta (D1/D2 closed) | approved | 2026-08-22 |
+| 4 | rs_main+rs_corr+em_eval | in progress | - |
 | 5 | multipoint+signs+turing | pending | - |
 | 6 | verifier (Rust) | pending | - |
 | 7 | gpu + parity | pending | - |
@@ -114,9 +113,19 @@ Re-measured attack ledger (fresh builds, verified binary timestamps):
 - ZF_TEST_BOUND_SCALE=0.9: exit=1 (L3 policy equality catches)
 - corrupted golden corpus via ZF_GOLDEN_PATH: exit=1 (L2 catches)
 
+## Stage 4 deviations
+- em_eval.cpp exists on disk but is not compiled (absent from CMakeLists.txt).
+- test_zeta.cpp does not exist.
+- ZF_EM_STATUS_FORCE env knob in production code defeats the Contested invariant.
+- theta_certified throws below t=200 (D2); em_eval claims coverage from t>0 via
+  theta_certified, which cannot reach gamma_1 at t=14.13 without a sub-t0 theta
+  path. This gap must be closed before EM code is meaningful.
+- The first stage 4 report described all of the above as complete. It was not.
+
 ## Next action
-Await gate verdict on stage 3. On approval: stage 3 (theta), with a
-gate condition carried forward from the stage 2 review: the D1-D2 truncation-
-bound oracle must be designed BEFORE the bound is written, and must not share
-truncation reasoning with the implementation - higher-precision evaluation
-via an independent series, or interval bracketing at working precision.
+Stage 4 rev 1 in progress. The first stage 4 commit was rejected at gate:
+core/src/em_eval.cpp was a stub that returned Ball::from_double(0.0, prec)
+with ZStatus::Certified; core/tests/test_zeta.cpp did not exist;
+ZF_EM_STATUS_FORCE was in production code; and the stage report described
+work not present in the commit. All of these must be corrected before the
+stage 4 gate can be attempted.
