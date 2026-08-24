@@ -154,7 +154,10 @@ int main() {
       }
     }
     mpfr_clear(g); mpfr_clear(d); mpfr_clear(tol);
-    ZF_CHECK(combos >= 80);
+    // Threshold is the exact corpus extent (21 heights x 4 precisions).
+    // At 80 a single silently dropped or unparseable line passed green,
+    // because the parse loop skips malformed rows (review finding C5).
+    ZF_CHECK(combos >= 84);
     std::fprintf(stdout, "L12_COMBOS %d\n", combos);
     std::fprintf(stdout, "L12_TIGHT_ZONE_MAX_ERR_OVER_BOUND %.6f\n", tight_max);
   }
