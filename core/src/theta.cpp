@@ -1,8 +1,8 @@
 #include "zetaforge/radius.hpp"
+#include "zetaforge/sabotage.hpp"
 #include "zetaforge/theta.hpp"
 
 #include <cmath>
-#include <cstdlib>
 #include <stdexcept>
 
 namespace zetaforge {
@@ -108,15 +108,9 @@ Ball theta_certified(double t, mpfr_prec_t prec) {
   const double coeff_slack = std::ldexp(1.0, static_cast<int>(1 - prec))
                              * ((1.0 / 48.0) / t) * (1.0 + 1e-3);
   double radius = kThetaSafety * rem_base + mpfr_slack + coeff_slack;
-#ifdef ZF_SABOTAGE_HOOKS
-  {
-    // Sabotage hook: compile-time gated, never active in production.
-    const char* e = std::getenv("ZF_IMPL_RADIUS_SCALE");
-    if (e != nullptr) {
-      radius *= std::strtod(e, nullptr);
-    }
-  }
-#endif
+  // Compile-time gated falsifiability hook; an inline 1.0 in production
+  // builds (zetaforge/sabotage.hpp). Never reads the environment here.
+  radius *= zf_radius_sabotage_scale();
   radius = inflate(radius);
 
   return Ball::from_centre_and_radius(acc.v, radius);
