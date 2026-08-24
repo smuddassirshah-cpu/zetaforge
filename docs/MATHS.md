@@ -18,7 +18,63 @@ claim whose status here is "pending" past the stage that needs it.
 | D5 | Turing-method window accounting with explicit S(T) bounds (Trudgian lineage) | stage 5 | pending |
 | D6 | Isolation cost factor model (evaluations per zero); early low-height estimate measured at stage 5 over [0,10^6], campaign-height figure confirmed at stage 9(a-i); both compared against the 2x reserve | stage 5 (estimate), stage 9(a-i) (confirmed) | pending |
 | D7 | Ball operation error bounds: centre rounding enters via half_ulp_bound of the rounded result; radius terms outward-rounded by integer-exact primitives (radius.hpp); no binary op exact. Soundness enforced structurally: bit-exact integer reference suite (test_radius), not statistical | stage 2 | done-by-construction + test_radius |
+| D7b | Complex ball (CBall) operation bounds: componentwise deviation bounds for add, mul and mul_real, each carrying an explicit centre-rounding term at the working precision, all radius arithmetic performed with the outward integer-exact primitives of radius.hpp. Derivation below. Soundness AND tightness are both tested: corner containment cannot see an over-wide radius, so test_cball layer C4 additionally asserts the claimed radius lies within a small multiple of the exact deviation bound | stage 4 | done, tests core/tests/test_cball.cpp layers C1-C4 |
 | D8 | Sub-t0 Z(t): below t0=200, compute zeta(1/2+it) directly by Euler-Maclaurin (no theta needed); Z(t)=Re[e^{i theta}]zeta collapses to |zeta| when theta is not separated; instead return the complex ball and let callers extract Re via e^{i theta} above t0 or use |zeta| as a lower bound for enclosure purposes below t0. EM remainder: first omitted Bernoulli term x SAFETY, monotone-checked at runtime | stage 4 | pending |
+
+## D7b derivation: complex ball operation bounds
+
+Notation. A complex ball is a centre pair (ar, ai) with componentwise radii
+(rr, ri); it denotes every z = x + iy with |x - ar| <= rr and |y - ai| <= ri.
+Note this is a RECTANGLE, not a disc, and the bounds below are componentwise
+throughout. Write a = (ar + p) + i(ai + q) with |p| <= rr_a, |q| <= ri_a, and
+b = (br + u) + i(bi + v) with |u| <= rr_b, |v| <= ri_b.
+
+Addition. The exact sum is (ar + br) + (p + u) + i[(ai + bi) + (q + v)], so
+the deviation is bounded componentwise by rr_a + rr_b and ri_a + ri_b. The
+stored centre is the mpfr sum at the component precision, which rounds; that
+adds |result| * 2^(1-p) per component, using a magnitude ceiling of the
+rounded result. Omitting this term (the state through rev 1) makes two exact
+inputs whose sum needs one more bit than the working precision produce a
+zero-radius ball around a rounded centre.
+
+Multiplication. Expanding a*b and separating the centre product,
+
+  Re(ab) = (ar br - ai bi)
+           + [ar u + p br + p u] - [ai v + q bi + q v]
+  Im(ab) = (ar bi + ai br)
+           + [ar v + p bi + p v] + [ai u + q br + q u]
+
+The parenthesised terms are the new centre. The remainder gives
+
+  |dev Re| <= |ar| rr_b + |ai| ri_b + rr_a |br| + ri_a |bi|
+              + rr_a rr_b + ri_a ri_b
+  |dev Im| <= |ar| ri_b + |ai| rr_b + rr_a |bi| + ri_a |br|
+              + rr_a ri_b + ri_a rr_b
+
+No product of two centre magnitudes appears, because that product IS the
+centre. The rev 1 implementation used L1(a) * L1(b) with both centre
+magnitudes included, which is sound but always exceeds the output centre
+magnitude, so every product ball contained zero and no downstream value could
+ever be signed. Measured on the C4 fixture, that bound was about 141x the
+exact deviation bound.
+
+Centre rounding for mul: three mpfr operations produce each component (two
+products and one addition or subtraction), so each component carries
+(|t1| + |t2| + |result|) * 2^(1-wp) with magnitude ceilings.
+
+Multiplication by a real ball (cf, cfr). Re(a * c) = ar cf + ar dc + p cf +
+p dc with |dc| <= cfr, giving |dev Re| <= |ar| cfr + rr_a |cf| + rr_a cfr,
+and likewise for Im. The implementation uses cfr(|ar| + |ai|) in place of the
+first term for both components, which dominates it. One mpfr multiplication
+per component contributes |result| * 2^(1-wp).
+
+Rounding directions. Every radius quantity above is combined with up_add and
+up_mul from radius.hpp, which round outward and are bit-exact by construction
+(D7). Centre magnitude ceilings are taken with a direction chosen from the
+sign of the value, so the conversion always rounds away from zero; taking the
+absolute value AFTER a round-up conversion rounds negative values toward zero
+and under-estimates every term the magnitude multiplies. Results pass through
+inflate, so no complex operation claims exactness.
 
 ## References of record
 
