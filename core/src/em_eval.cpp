@@ -1,7 +1,6 @@
 #include "zetaforge/em_eval.hpp"
 
 #include <cmath>
-#include <cstdlib>
 #include <stdexcept>
 
 #include <gmp.h>
@@ -16,10 +15,14 @@ constexpr long long kBNum[kBernMaxK] = {
 constexpr long long kBDen[kBernMaxK] = {
     6, 30, 42, 30, 66, 2730, 6, 510, 798, 330};
 
-int m_delta_env() {
-  const char* e = std::getenv("ZF_EM_M_DELTA");
-  return e ? static_cast<int>(std::strtol(e, nullptr, 10)) : 0;
-}
+// EM correction order, fixed at compile time. An environment-tunable order
+// (the removed ZF_EM_M_DELTA) put the numerical configuration outside the
+// config hash that PLAN.md section 8 makes the unit of the determinism
+// contract: the same defect class that had ZF_EM_STATUS_FORCE removed at
+// rev 1. Readiness review finding C4.
+constexpr int kEmCorrectionOrder = 8;
+static_assert(kEmCorrectionOrder >= 2 && kEmCorrectionOrder <= kBernMaxK,
+              "EM correction order must index the Bernoulli table");
 
 }  // namespace
 
@@ -32,12 +35,11 @@ ZResult zeta_em(double t, mpfr_prec_t prec) {
         "zeta_em above kEmTMax: RS path with certified correction owns "
         "this range");
   }
-  int M = 8 + m_delta_env();
-  if (M < 2 || M > kBernMaxK) {
-    throw std::invalid_argument("EM correction order out of range");
-  }
-  // Implementation requires D8 derivation (sub-t0 theta) and EM tail
-  // remainder bound with monotone check. See MATHS.md.
+  // Implementation requires the D8 rewrite (certified sub-t0 theta) and a
+  // sound EM tail remainder bound. Both are Phase 2 work per
+  // docs/REVIEW-2026-08-24.md findings A1 and A2: the |zeta| plan in D8
+  // cannot certify a sign change, and the first-omitted-term policy is not a
+  // theorem on the critical line.
   throw std::runtime_error(
       "zeta_em: not yet implemented; blocked on D8 sub-t0 derivation "
       "and EM tail remainder monotone-check derivation");

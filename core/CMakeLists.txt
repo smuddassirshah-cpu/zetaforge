@@ -1,8 +1,20 @@
+option(ZF_SABOTAGE_HOOKS "Compile-time sabotage hooks (NEVER enable in production)" OFF)
+
 add_library(zetaforge_core STATIC src/ball.cpp src/em_eval.cpp src/theta.cpp)
 target_include_directories(zetaforge_core PUBLIC include)
 target_compile_features(zetaforge_core PUBLIC cxx_std_23)
-option(ZF_SABOTAGE_HOOKS "Compile-time sabotage hooks (NEVER enable in production)" OFF)
 target_link_libraries(zetaforge_core PUBLIC PkgConfig::MPFR PkgConfig::GMP)
+
+# Sabotage wiring (review finding C2). The define goes on the LIBRARY, which is
+# where the hooked code lives, and PUBLIC so consuming tests agree with it. The
+# previous wiring put the define on a test target that had not been declared
+# yet: it failed to configure, and had it configured, the knob still could not
+# have reached theta.cpp inside the library.
+if(ZF_SABOTAGE_HOOKS)
+  target_sources(zetaforge_core PRIVATE src/sabotage.cpp)
+  target_compile_definitions(zetaforge_core PUBLIC ZF_SABOTAGE_HOOKS)
+  message(WARNING "ZF_SABOTAGE_HOOKS is ON: this build is for gate-battery use only, never production")
+endif()
 
 add_executable(test_ball tests/test_ball.cpp)
 target_link_libraries(test_ball PRIVATE zetaforge_core)
@@ -45,9 +57,6 @@ target_link_libraries(test_zeta PRIVATE zetaforge_core ${FLINT_LIBRARY})
 target_include_directories(test_zeta PRIVATE ${FLINT_INCLUDE_DIR})
 add_test(NAME zeta COMMAND test_zeta)
 
-if(ZF_SABOTAGE_HOOKS)
-  target_compile_definitions(test_theta PRIVATE ZF_SABOTAGE_HOOKS)
-endif()
 add_executable(test_theta tests/test_theta.cpp)
 target_link_libraries(test_theta PRIVATE zetaforge_core)
 target_compile_definitions(test_theta PRIVATE

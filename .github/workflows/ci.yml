@@ -88,3 +88,53 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           working-directory: verifier
+
+  no-env-knobs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: production code must not read the environment
+        run: |
+          hits=$(grep -rn "getenv" core/src core/include | grep -v "core/src/sabotage.cpp" || true)
+          if [ -n "$hits" ]; then
+            echo "$hits"
+            echo "FAIL: environment read in production code outside core/src/sabotage.cpp"
+            exit 1
+          fi
+          echo "OK: no environment reads in production code outside the gated sabotage unit"
+
+  sabotage-battery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: install numeric dependencies
+        run: sudo apt-get update && sudo apt-get install -y libgmp-dev libmpfr-dev libflint-dev pkg-config
+      - name: build with hooks ON
+        run: |
+          cmake -S . -B build-sab -DCMAKE_BUILD_TYPE=Release -DZF_SABOTAGE_HOOKS=ON
+          cmake --build build-sab --parallel
+      - name: hooked build MUST detect a scaled production radius
+        run: |
+          set +e
+          ZF_IMPL_RADIUS_SCALE=0.1 ./build-sab/core/test_theta > /dev/null 2>&1
+          rc=$?; set -e
+          echo "ZF_IMPL_RADIUS_SCALE=0.1 (hooks ON) -> exit $rc"
+          [ "$rc" -eq 1 ] || { echo "FAIL: expected exit 1"; exit 1; }
+      - name: hooked build MUST detect a scaled transcribed bound
+        run: |
+          set +e
+          ZF_TEST_BOUND_SCALE=0.9 ./build-sab/core/test_theta > /dev/null 2>&1
+          rc=$?; set -e
+          echo "ZF_TEST_BOUND_SCALE=0.9 (hooks ON) -> exit $rc"
+          [ "$rc" -eq 1 ] || { echo "FAIL: expected exit 1"; exit 1; }
+      - name: build with hooks OFF (production configuration)
+        run: |
+          cmake -S . -B build-prod -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-prod --parallel
+      - name: production build MUST NOT respond to the knob
+        run: |
+          set +e
+          ZF_IMPL_RADIUS_SCALE=0.1 ./build-prod/core/test_theta > /dev/null 2>&1
+          rc=$?; set -e
+          echo "ZF_IMPL_RADIUS_SCALE=0.1 (hooks OFF) -> exit $rc"
+          [ "$rc" -eq 0 ] || { echo "FAIL: knob reached a production binary"; exit 1; }
