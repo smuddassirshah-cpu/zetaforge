@@ -117,7 +117,7 @@ Re-measured attack ledger (fresh builds, verified binary timestamps):
 5. Oracle independence: exact_ref.hpp shares no code with radius.hpp; floors use directed lower bounds only.
 6. ffix under-reporting: truncation-accounting sabotage detected by min_bound assertion.
 7. NTT exactness + benchmark honesty: schoolbook cross-checks pass; fitted slope 1.111, R^2=0.99995 over n=2^10..2^20, single-threaded Apple M2, conditions recorded in docs/benchmarks/ntt-bench.md.
-8. Cross-config determinism: Release vs Debug hashes identical locally; CI determinism-compare job enforces on every push.
+8. Cross-config determinism: Release vs Debug hashes identical locally; CI determinism-compare job enforces on pushes to main and on pull requests. Coverage extended at rev 5 from Ball/Ffix/NTT to include theta_certified and every CBall operation (review finding C6).
 
 ## Stage 3 attack ledger (final)
 - Bound-tightening x0.9 via ZF_TEST_BOUND_SCALE: L3 policy-equality check FAILS under scale (exit=1), passes clean. Deterministic, seed-independent.
