@@ -1,20 +1,20 @@
 # Build state
 
 Current stage: 4
-Last updated: 2026-08-22
+Last updated: 2026-08-24
 
 ## Stages
 | # | Stage | Status | Gate |
 |---|-------|--------|------|
 | 1 | Scaffolding + CI (revs 1-3) | approved | 2026-08-22 |
 | 2 | core/ball+ffix+ntt (rev 1) | approved | 2026-08-22 |
-| 3 | theta (D1/D2 closed) | approved | 2026-08-22 |
-| 4 | rs_main+rs_corr+em_eval | awaiting review | - |
+| 3 | theta (D1/D2 closed) | approved | 2026-08-23 |
+| 4 | rs_main+rs_corr+em_eval | in progress | - |
 | 5 | multipoint+signs+turing | pending | - |
 | 6 | verifier (Rust) | pending | - |
 | 7 | gpu + parity | pending | - |
 | 8 | orchestrate | pending | - |
-| 9 | Pilot [0,10^9] on cloud | pending | - |
+| 9 | Ground truth + pilot on cloud | pending | - |
 | 10 | Main campaign [H0, H0+D] | pending | - |
 | 11 | Analysis + release | pending | - |
 
@@ -44,6 +44,23 @@ Running log. One line each: date, decision, reason, PLAN.md deviation? y/n.
 - 2026-08-22 (stage 1 gate rev 2), Poison regex extended to -funsafe-math-optimizations|-fassociative-math|-freciprocal-math|-ffinite-math-only; Ball stub rejects non-finite centres with tests; stage 7 CUDA guard obligations written into PLAN section 11 DoD, n
 - 2026-08-22 (stage 1 gate rev 3), Coverage claim corrected: negative-infinity centre test added (report had said four rejection tests, there were three); stage 5 DoD amended per risk register: early isolation-factor estimate measured over [0,10^6] and recorded against the 2x reserve, D6 now bounded at stage 5 rather than first measured at stage 9(a-i); MATHS.md D6 updated accordingly, y
 - 2026-08-22, Repo public from day one with stub README until Phase 3 rewrite, visibility is itself a signal and Phase 3 owns claims discipline, n
+- 2026-08-24 (rev 5), Tracker lapse recorded: stage 4 was presented as "awaiting
+  review" with 0 of 3 definition-of-done items backed by working code (zeta_em a
+  throwing stub, no zeta/ tree, no rs_main/rs_corr, gamma_1 unreproduced). The
+  status was not defensible under gate rule 3 and is corrected to "in progress",
+  y
+- 2026-08-24 (rev 5), docs/REVIEW-2026-08-24.md (independent readiness review)
+  adopted as the rev 5 work order. Phase 0 (truth reset) and Phase 1 (repair of
+  approved stage 2 surfaces) are in scope this revision; Phase 2 (D8 rewrite,
+  Backlund remainder, EM implementation, rs_main/rs_corr) is deferred to rev 6, y
+- 2026-08-24 (rev 5), Stage 2 approved surfaces reopened for regression repair
+  under review findings B4 (Ball::parse radius from the double image), B5
+  (Ffix::mul silent wraparound) and B6 (half_ulp_bound subnormal zero). Repairing
+  an approved stage is a deviation from gate rule 1 and is logged here rather
+  than folded silently into stage 4 work, y
+- 2026-08-24 (rev 5), Revision commits use the form "stage 4 rev 5: <item>"; the
+  gate form "stage <N>: <deliverable>" is reserved for the approved gate commit
+  only (review finding D5), n
 
 ## Open questions
 Anything blocking or deferred, with the stage it affects.
@@ -114,18 +131,32 @@ Re-measured attack ledger (fresh builds, verified binary timestamps):
 - corrupted golden corpus via ZF_GOLDEN_PATH: exit=1 (L2 catches)
 
 ## Stage 4 deviations
-- em_eval.cpp exists on disk but is not compiled (absent from CMakeLists.txt).
-- test_zeta.cpp does not exist.
-- ZF_EM_STATUS_FORCE env knob in production code defeats the Contested invariant.
-- theta_certified throws below t=200 (D2); em_eval claims coverage from t>0 via
-  theta_certified, which cannot reach gamma_1 at t=14.13 without a sub-t0 theta
-  path. This gap must be closed before EM code is meaningful.
-- The first stage 4 report described all of the above as complete. It was not.
+
+Rev 0 (rejected at gate). The report described work that was not present:
+em_eval.cpp returned Ball::from_double(0.0) with ZStatus::Certified,
+core/tests/test_zeta.cpp did not exist, and ZF_EM_STATUS_FORCE sat in
+production code where it defeated the Contested invariant.
+
+Rev 1 (corrected some of the above, still not gateable). em_eval.cpp was
+compiled into the library as an honest throwing stub, test_zeta.cpp was added,
+and ZF_EM_STATUS_FORCE was removed. The stage was then flipped to "awaiting
+review" although no definition-of-done item had working code behind it; that
+flip was the tracker lapse now logged under Decisions.
+
+Rev 5 (this revision, review-driven). Open at the start of this revision, per
+docs/REVIEW-2026-08-24.md:
+- zeta_em is a throwing stub; gamma_1 is not reproduced (DoD item 1 open).
+- No zeta/ tree, no rs_main, no rs_corr, and D3 is pending (DoD item 2 open).
+- No Arb-overlap comparison on the overlap region (DoD item 3 open).
+- MATHS.md D8 as written cannot certify a sign change: |Z| = |zeta| identically,
+  so the |zeta| lower-bound plan carries no sign information (review A1).
+- The EM remainder policy (first omitted term x 4, monotone-checked) is not a
+  theorem on the critical line and under-reports by up to ~17x (review A2).
+All four are Phase 2 work, deferred to rev 6 by the scope decision above.
 
 ## Next action
-Stage 4 rev 1 in progress. The first stage 4 commit was rejected at gate:
-core/src/em_eval.cpp was a stub that returned Ball::from_double(0.0, prec)
-with ZStatus::Certified; core/tests/test_zeta.cpp did not exist;
-ZF_EM_STATUS_FORCE was in production code; and the stage report described
-work not present in the commit. All of these must be corrected before the
-stage 4 gate can be attempted.
+Rev 5 in progress: readiness-review Phase 0 (truth reset) and Phase 1 (repair of
+approved stage 2 surfaces, CBall rebuild, determinism-hash extension, tags).
+Rev 6 is Phase 2 (D8 rewrite, Backlund remainder bound, EM implementation, and
+either rs_main/rs_corr or a formal split of stage 4), which must not begin
+without an explicit "approved, continue" on rev 5.
