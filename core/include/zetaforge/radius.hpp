@@ -192,7 +192,13 @@ inline double half_ulp_bound(double c) noexcept {
   }
   const double up = std::nextafter(c, INFINITY);
   const double dn = std::nextafter(c, -INFINITY);
-  return std::fmax(up - c, c - dn) * 0.5;
+  const double half = std::fmax(up - c, c - dn) * 0.5;
+  // Subnormal c: the wider span IS denorm_min, and halving it lands exactly on
+  // 2^-1075, which ties-to-even rounds to zero. Returning that would assert
+  // certainty about an inexact value, the false-exact failure the stage 2
+  // ledger pre-registered but only ever probed on up_mul (review finding B6).
+  // denorm_min is the smallest sound answer here and is outward.
+  return half > 0.0 ? half : std::numeric_limits<double>::denorm_min();
 }
 
 }  // namespace zetaforge

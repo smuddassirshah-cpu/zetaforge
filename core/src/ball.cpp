@@ -70,17 +70,48 @@ Ball Ball::from_double(double x, mpfr_prec_t prec_bits) {
   return out;
 }
 
+// Half an ulp of c at c's own precision, rounded outward into a double.
+//
+// Gate finding (review B4). The previous implementation took
+// half_ulp_bound(mpfr_get_d(centre)), a bound on the DOUBLE image rather than
+// on the stored mpfr value, and it failed at both ends of the range:
+//   parse("1e-320", 128) -> the double image is subnormal, the halved span
+//     ties-to-even to zero, and the ball claimed EXACTNESS about a value whose
+//     true representation error is ~3.7e-359.
+//   parse("1e400", 128)  -> the double image is infinite, the old code
+//     substituted denorm_min, and the ball claimed a radius ~684 orders of
+//     magnitude below the true error of ~1.5e361.
+// Both are enclosure violations in an approved stage 2 public API.
+//
+// Derivation: mpfr stores |c| in [2^(e-1), 2^e) at precision p, so ulp(c) is
+// 2^(e-p) and round-to-nearest gives |true - c| <= 2^(e-p-1). That exponent is
+// read from the ROUNDED centre, so a value carried up into the next binade by
+// rounding is bounded by its own larger ulp. Powers of two are exact in a
+// double wherever they are representable, so the conversion adds no error;
+// outside that range the policy is explicit rather than silent.
+double Ball::representation_radius(mpfr_srcptr c) {
+  if (mpfr_zero_p(c)) {
+    return 0.0;  // zero is exactly representable at every precision
+  }
+  const long e = static_cast<long>(mpfr_get_exp(c));
+  const long p = static_cast<long>(mpfr_get_prec(c));
+  const long k = e - p - 1;  // half ulp = 2^k
+  if (k > 1023) {
+    return kInf;  // beyond double range: unknown_at_precision, never a number
+  }
+  if (k < -1074) {
+    return std::numeric_limits<double>::denorm_min();  // never false-exact
+  }
+  return std::ldexp(1.0, static_cast<int>(k));
+}
+
 Ball Ball::parse(const std::string& decimal, mpfr_prec_t prec_bits) {
   Ball out(prec_bits);
   const int ret = mpfr_set_str(out.centre_, decimal.c_str(), 10, MPFR_RNDN);
   if (ret != 0) {
     throw std::invalid_argument("unparsable ball literal");
   }
-  out.radius_ = half_ulp_bound(mpfr_get_d(out.centre_, MPFR_RNDN));
-  if (!(out.radius_ < kInf)) {
-    // Magnitude outside double range: the parse cannot bound itself.
-    out.radius_ = inflate(std::numeric_limits<double>::denorm_min());
-  }
+  out.radius_ = representation_radius(out.centre_);
   return out;
 }
 

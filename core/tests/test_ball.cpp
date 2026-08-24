@@ -4,6 +4,7 @@
 
 #include "check.hpp"
 #include "zetaforge/ball.hpp"
+#include "zetaforge/radius.hpp"
 
 using zetaforge::Ball;
 
@@ -102,6 +103,70 @@ int main() {
   ZF_CHECK(r1 > 0.0);
   w.widen_radius(denorm);
   ZF_CHECK(w.radius() > r1);
+
+  // ---- parse radius soundness (review findings B4, B6) -------------------
+  // Both cases were enclosure violations in an approved stage 2 API: the
+  // radius was derived from the DOUBLE image of the mpfr centre, so it
+  // collapsed to a false-exact zero below the subnormal threshold and to
+  // denorm_min above DBL_MAX.
+  {
+    // Truth is computed at a precision far above the ball's own, so the
+    // reference is not the quantity under test.
+    mpfr_t truth, diff, rad;
+    mpfr_init2(truth, 512);
+    mpfr_init2(diff, 512);
+    mpfr_init2(rad, 512);
+
+    // Subnormal-range magnitude: must not claim exactness, must enclose.
+    {
+      const Ball b = Ball::parse("1e-320", 128);
+      ZF_CHECK(b.radius() > 0.0);
+      mpfr_set_str(truth, "1e-320", 10, MPFR_RNDN);
+      mpfr_sub(diff, b.centre(), truth, MPFR_RNDN);
+      mpfr_abs(diff, diff, MPFR_RNDN);
+      mpfr_set_d(rad, b.radius(), MPFR_RNDN);
+      ZF_CHECK(mpfr_cmp(diff, rad) <= 0);
+    }
+
+    // Beyond double range: the ball must not claim a finite radius that sits
+    // below the true representation error.
+    {
+      const Ball b = Ball::parse("1e400", 128);
+      mpfr_set_str(truth, "1e400", 10, MPFR_RNDN);
+      mpfr_sub(diff, b.centre(), truth, MPFR_RNDN);
+      mpfr_abs(diff, diff, MPFR_RNDN);
+      if (b.radius() < std::numeric_limits<double>::infinity()) {
+        mpfr_set_d(rad, b.radius(), MPFR_RNDN);
+        ZF_CHECK(mpfr_cmp(diff, rad) <= 0);
+      } else {
+        ZF_CHECK(b.unknown_at_precision());
+      }
+    }
+
+    // A value representable exactly at the working precision still carries a
+    // sound (non-negative) bound, and enclosure holds.
+    {
+      const Ball b = Ball::parse("0.5", 128);
+      ZF_CHECK(b.radius() >= 0.0);
+      mpfr_set_str(truth, "0.5", 10, MPFR_RNDN);
+      mpfr_sub(diff, b.centre(), truth, MPFR_RNDN);
+      mpfr_abs(diff, diff, MPFR_RNDN);
+      mpfr_set_d(rad, b.radius(), MPFR_RNDN);
+      ZF_CHECK(mpfr_cmp(diff, rad) <= 0);
+    }
+
+    mpfr_clear(truth);
+    mpfr_clear(diff);
+    mpfr_clear(rad);
+  }
+
+  // half_ulp_bound must never return zero for an inexact subnormal (B6).
+  {
+    const double dmin = std::numeric_limits<double>::denorm_min();
+    ZF_CHECK(zetaforge::half_ulp_bound(dmin) > 0.0);
+    ZF_CHECK(zetaforge::half_ulp_bound(dmin * 3.0) > 0.0);
+    ZF_CHECK(zetaforge::half_ulp_bound(std::ldexp(1.0, -1073)) > 0.0);
+  }
 
   return ::zftest::failure_count() == 0 ? 0 : 1;
 }
