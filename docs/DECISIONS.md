@@ -88,7 +88,13 @@ interviewer's first follow-up is always "compared to what?".
   the rev-0 decimal strings. Representation error is now an explicit radius
   component (c_1 * 2^(1-prec) / t) rather than silent. Retracted claims:
   "c_6 has no small rational form" (false - discovery ladder caps were below
-  its true denominator; caps fixed in the tool); the Newton-polish c_6 value
+  its true denominator). NOTE 2026-08-24 (review finding A4): the follow-on
+  claim in this entry that the caps were "fixed in the tool" is itself false.
+  tools/discover_theta_coefficients.py, run verbatim today, returns a
+  sign-flipped c_6 and garbage beyond c_5 while printing a cross-check that
+  looks like success. The committed coefficient table is correct and
+  independently re-verified; only its documented provenance is broken. Fixing
+  or retiring the tool is Phase 2 work and is NOT done in rev 5; the Newton-polish c_6 value
   and its "4e-62 residual" claim (degenerate 6-point overfit whose held-out
   t=200 residual contradicted the first-omitted-term model by ~1e3x); the
   "2^(2n)-1 numerator pattern" observation (broken by c_6's numerator).
@@ -99,12 +105,15 @@ interviewer's first follow-up is always "compared to what?".
   through %g double conversions and by an early oracle probe accidentally
   calling _acb_dirichlet_theta_argument_at_arb. Lesson recorded: never route
   a precision claim through a double conversion.
-- 2026-08-22 (stage 3 rev 1). L1 reinstated as a real enclosure layer:
-  zero-additive-slack overlap vs acb_lgamma intervals, swept t in
-  [200, 3e12] x prec in {128,192,256,512} (84 combos). Golden corpus
-  regenerated at dps=220 / 170 significant digits so corpus quantization
-  (~1e-155 at campaign heights) stays below every certified radius; L2
-  tolerance reduced to exactly the certified radius.
+- 2026-08-22 (stage 3 rev 1). RETRACTED 2026-08-24 (review finding D4). This
+  entry recorded an L1 enclosure layer overlapping acb_lgamma intervals across
+  84 combinations. No such layer has ever existed in any committed tree: the
+  shipped suite is L2 (committed corpus) plus L3 (policy equality) only. What
+  did land and stands: the golden corpus regenerated at dps=220 (about 170
+  significant digits) so corpus quantisation stays far below every certified
+  radius, and the L2 tolerance reduced to exactly the certified radius with no
+  additive slack. A live enclosure layer is Phase 2 work per the readiness
+  review, if it is built at all.
 - 2026-08-22 (stage 3 rev 1). Radius now carries THREE explicitly derived
   components (series remainder x SAFETY, mpfr rounding, coefficient
   representation error); L3 policy-equality tolerance set to 1e-3 relative

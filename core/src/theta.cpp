@@ -9,12 +9,14 @@ namespace zetaforge {
 
 namespace {
 
-// Coefficients from tools/discover_theta_coefficients.py, globally polished
-// against mpmath loggamma (Newton fit at 12 heights, dps 400): the full N=6
-// series then matches the oracle to <= 4e-62 absolute across t in [200,
-// 3e12], and the t=200 leftover equals |c7|/t^13 exactly -- confirming both
-// the table and the first-omitted-term remainder model behind D1.
-// Exact rational coefficients (MATHS.md D1). Parsed at working precision;
+// Exact rational coefficients (MATHS.md D1). The provenance claim that stood
+// here (a global Newton polish against mpmath loggamma matching the oracle to
+// 4e-62) was retracted at stage 3 rev 1 as a degenerate overfit and is struck
+// here too (readiness review finding A4). The values below are correct and
+// were re-verified independently against the classical closed form for the
+// theta asymptotic coefficients; the committed discovery script does NOT
+// currently regenerate them, which is an open provenance defect owned by
+// Phase 2, not a defect in this table. Parsed at working precision;
 // per-coefficient representation error <= ulp_p(c_k) is carried explicitly
 // in the certified radius (coeff_slack), never silently dropped.
 struct RationalCoeff { unsigned long long num; unsigned long long den; };
