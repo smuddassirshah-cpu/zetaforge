@@ -60,8 +60,22 @@ int main() {
   // exact quotient, and the tracked bound must cover that plus policy slack.
   constexpr int kTrials = 5000;
   for (int t = 0; t < kTrials; ++t) {
-    const auto mag_a = static_cast<unsigned __int128>(rng.next()) >> 28;  // < 2^100
-    const auto mag_b = static_cast<unsigned __int128>(rng.next()) >> 28;
+    // Generator (review finding: the previous one was vacuous). It read
+    //   static_cast<unsigned __int128>(rng.next()) >> 28
+    // with a comment claiming "< 2^100": the cast happens BEFORE the shift, so
+    // a 64-bit draw was shifted down to at most 2^36 and no operand ever
+    // reached 2^64, let alone the 2^120 contract limit. The overflow path was
+    // therefore never exercised at all. Now the magnitude is assembled at full
+    // 128-bit width and truncated to a random bit-width across the whole legal
+    // range, so operands well above 2^64 and products beyond 2^191 both occur.
+    unsigned __int128 wide = static_cast<unsigned __int128>(rng.next()) << 64;
+    wide |= static_cast<unsigned __int128>(rng.next());
+    const int width_a = 1 + static_cast<int>(rng.next() % 120);
+    const int width_b = 1 + static_cast<int>(rng.next() % 120);
+    const auto mag_a = wide >> (128 - width_a);
+    unsigned __int128 wide2 = static_cast<unsigned __int128>(rng.next()) << 64;
+    wide2 |= static_cast<unsigned __int128>(rng.next());
+    const auto mag_b = wide2 >> (128 - width_b);
     const bool neg_a = rng.next() & 1;
     const bool neg_b = rng.next() & 1;
 
@@ -72,9 +86,30 @@ int main() {
 
     const Ffix fa = Ffix::from_raw(ra);
     const Ffix fb = Ffix::from_raw(rb);
-    const Ffix prod = fa.mul(fb);
 
     const U256 m = mul_u128(mag_a, mag_b);
+    // Result magnitude is floor(M / 2^64). The type contract is |raw| < 2^120
+    // (enforced on every result), so a throw is required exactly when
+    // floor(M / 2^64) >= 2^120, i.e. M >= 2^184. For M = m.hi*2^128 + m.lo
+    // with m.lo < 2^128 that holds if and only if m.hi >= 2^56. Decided from
+    // the exact 256-bit product, so the expectation shares no arithmetic with
+    // the implementation under test.
+    const bool expect_overflow = (m.hi >> 56) != 0;
+    if (expect_overflow) {
+      bool threw = false;
+      try {
+        const Ffix bad = fa.mul(fb);
+        (void)bad;
+      } catch (const std::overflow_error&) {
+        threw = true;
+      }
+      // Silent wraparound here is the B5 defect: a certified-looking value
+      // (often exactly zero) where the contract promises a throw.
+      ZF_CHECK(threw);
+      continue;
+    }
+
+    const Ffix prod = fa.mul(fb);
     const unsigned __int128 q_floor = (m.hi << 64) | (m.lo >> 64);
     const uint64_t frac = static_cast<uint64_t>(m.lo);
 
@@ -91,10 +126,15 @@ int main() {
     ZF_CHECK(prod.err() >= min_bound);
 
     // Monotone propagation: chaining through an error-carrying operand must
-    // never shrink the bound.
+    // never shrink the bound. Restricted to chains that stay inside the type
+    // contract, decided in advance from the exact product rather than by
+    // catching and ignoring a throw.
     if (fa.err() > 0) {
-      const Ffix again = prod.mul(fa);
-      ZF_CHECK(again.err() >= prod.err());
+      const U256 m2 = mul_u128(out_mag, mag_a);
+      if ((m2.hi >> 56) == 0) {
+        const Ffix again = prod.mul(fa);
+        ZF_CHECK(again.err() >= prod.err());
+      }
     }
   }
 
@@ -131,6 +171,38 @@ int main() {
     threw = true;
   }
   ZF_CHECK(threw);
+
+  // ---- B5 regression: the exact reported case --------------------------
+  // from_int(2^32) has raw 2^96, comfortably inside the |raw| < 2^120
+  // contract. Its square has M = 2^192, so floor(M/2^64) = 2^128 does not fit
+  // the signed raw word and the contract requires a throw. Before the fix this
+  // returned raw 0 with err 1 and no exception.
+  {
+    const Ffix a = Ffix::from_int(static_cast<long>(1) << 32);
+    ZF_CHECK(a.raw() == (static_cast<Ffix::raw_t>(1) << 96));
+    bool threw = false;
+    try {
+      const Ffix sq = a.mul(a);
+      // A non-throwing implementation must at least be exact; raw 0 is the
+      // defect signature.
+      ZF_CHECK(sq.raw() != 0);
+    } catch (const std::overflow_error&) {
+      threw = true;
+    }
+    ZF_CHECK(threw);
+  }
+
+  // from_int must enforce the contract on the raw word, not on the argument.
+  {
+    bool threw = false;
+    try {
+      const Ffix f = Ffix::from_int(static_cast<long>(1) << 60);
+      (void)f;
+    } catch (const std::overflow_error&) {
+      threw = true;
+    }
+    ZF_CHECK(threw);
+  }
 
   std::fprintf(stdout, "FFIX_TRIALS %d failures %d\n", kTrials,
                ::zftest::failure_count());
