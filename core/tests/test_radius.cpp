@@ -16,6 +16,7 @@
 
 #include "check.hpp"
 #include "exact_ref.hpp"
+#include "zetaforge/ball.hpp"
 #include "zetaforge/radius.hpp"
 
 using zetaforge::half_ulp_bound;
@@ -145,6 +146,55 @@ int main() {
            std::numeric_limits<double>::denorm_min());
   ZF_CHECK(up_mul(0.0, 7.0) == 0.0);
   ZF_CHECK(up_add(0.0, 0.0) == 0.0);
+
+  // ---- parse radius against an independently derived reference (B4) ------
+  // Production derives the bound from exponent arithmetic (2^(e-p-1)). This
+  // reference derives it from mpfr_nextabove: take the successor of the stored
+  // centre at its own precision, difference it, halve it. Different machinery,
+  // so a single-sided slip in either shows up as disagreement rather than
+  // being mirrored. Per DECISIONS.md, independence means independently
+  // DERIVED, not independently filed.
+  {
+    const char* literals[] = {"0.5", "1.41421356237309504880", "6.62607015e-34",
+                              "1e-320", "12345.6789", "1e-40"};
+    for (const char* lit : literals) {
+      for (const mpfr_prec_t pr : {mpfr_prec_t(64), mpfr_prec_t(128),
+                                   mpfr_prec_t(256)}) {
+        const zetaforge::Ball b = zetaforge::Ball::parse(lit, pr);
+        if (!(b.radius() < kInf)) {
+          continue;  // unknown-at-precision policy, checked in test_ball
+        }
+        mpfr_t nxt, span;
+        mpfr_init2(nxt, pr);
+        mpfr_init2(span, 256);
+        mpfr_set(nxt, b.centre(), MPFR_RNDN);
+        mpfr_nextabove(nxt);
+        mpfr_sub(span, nxt, b.centre(), MPFR_RNDN);  // exactly one ulp at pr
+        mpfr_abs(span, span, MPFR_RNDN);
+        mpfr_div_2ui(span, span, 1, MPFR_RNDN);      // exactly half an ulp
+        mpfr_t claimed;
+        mpfr_init2(claimed, 256);
+        mpfr_set_d(claimed, b.radius(), MPFR_RNDN);
+        // Soundness always: the claimed bound must dominate the true half-ulp.
+        ZF_CHECK(mpfr_cmp(claimed, span) >= 0);
+        // Minimality where the half-ulp is representable as a double. Below
+        // denorm_min the production policy deliberately clamps upward (it must
+        // never report a false-exact zero), so equality is required only in
+        // the representable regime; that is exactly where a one-sided slip in
+        // the exponent arithmetic would hide.
+        mpfr_t dmin;
+        mpfr_init2(dmin, 64);
+        mpfr_set_d(dmin, std::numeric_limits<double>::denorm_min(), MPFR_RNDN);
+        if (mpfr_cmp(span, dmin) >= 0) {
+          ZF_CHECK(mpfr_cmp(claimed, span) == 0);
+        }
+        mpfr_clear(dmin);
+        mpfr_clear(claimed);
+        mpfr_clear(nxt);
+        mpfr_clear(span);
+      }
+    }
+  }
 
   std::fprintf(stdout, "RADIUS_EXACT failures %d\n", ::zftest::failure_count());
   return ::zftest::failure_count() == 0 ? 0 : 1;

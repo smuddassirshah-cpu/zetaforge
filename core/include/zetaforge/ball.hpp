@@ -46,7 +46,10 @@ class Ball {
 
   // Parses a decimal string. The stored centre is the correctly rounded
   // representation at prec_bits; the parse itself is inexact unless the value
-  // is representable, so radius starts at half an ulp of the stored centre.
+  // is representable, so radius starts at half an ulp of the stored centre AT
+  // prec_bits. Deriving that bound from the double image of the centre (the
+  // implementation through rev 1) was unsound at both ends of the range: see
+  // representation_radius.
   static Ball parse(const std::string& decimal, mpfr_prec_t prec_bits);
 
   static Ball add(const Ball& a, const Ball& b);
@@ -78,6 +81,8 @@ class Ball {
   // centre rounding bound, inflated so no binary op claims exactness.
   static double finish_radius(double terms, mpfr_srcptr rounded_centre);
   static double abs_centre_ceiling(mpfr_srcptr c);
+  // Half an ulp of c at c's OWN precision, rounded outward into a double.
+  static double representation_radius(mpfr_srcptr c);
 };
 
 }  // namespace zetaforge
