@@ -1,6 +1,7 @@
 // Cross-configuration determinism probe (stage 2 attack item 8).
 //
-// Runs a fixed operation sequence over Ball, Ffix and NTT and prints
+// Runs a fixed operation sequence over Ball, Ffix, NTT, theta_certified and
+// every CBall operation, and prints
 //   DETERMINISM_HASH <hex16>
 // CI runs this binary in the Release and Debug matrix legs and requires the
 // two hashes to be identical: -ffp-contract=off is load-bearing from this
@@ -9,12 +10,15 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <vector>
 
 #include "check.hpp"
 #include "zetaforge/ball.hpp"
+#include "zetaforge/cball.hpp"
 #include "zetaforge/ffix.hpp"
 #include "zetaforge/ntt.hpp"
+#include "zetaforge/theta.hpp"
 
 namespace {
 
@@ -29,6 +33,19 @@ void mix_bytes(const void* data, size_t len) {
 }
 
 void mix_double(double x) { mix_bytes(&x, sizeof(x)); }
+
+// Mixes an mpfr value at full stored precision rather than through a double.
+// A double conversion would hide any divergence below 53 bits, which is most
+// of the range the certified path actually operates in.
+void mix_mpfr(mpfr_srcptr v) {
+  mpfr_exp_t exp = 0;
+  char* str = mpfr_get_str(nullptr, &exp, 16, 0, v, MPFR_RNDN);
+  if (str != nullptr) {
+    mix_bytes(str, std::strlen(str));
+    mpfr_free_str(str);
+  }
+  mix_bytes(&exp, sizeof(exp));
+}
 
 }  // namespace
 
@@ -69,6 +86,65 @@ int main() {
     checksum = (checksum * UINT64_C(31) + conv[i]) % 998244353ULL;
   }
   mix_bytes(&checksum, sizeof(checksum));
+
+  // ---- theta_certified (review finding C6) --------------------------------
+  // The hash previously covered Ball, Ffix and NTT only, so the entire
+  // certified theta path and the complex ball layer were outside the only
+  // cross-configuration check the project runs. A contraction or reassociation
+  // difference there would not have shown up anywhere.
+  {
+    const double heights[] = {200.0, 1000.0, 1.0e6, 3.0e12};
+    const mpfr_prec_t precs[] = {128, 256};
+    for (const double h : heights) {
+      for (const mpfr_prec_t pr : precs) {
+        const Ball th = zetaforge::theta_certified(h, pr);
+        mix_mpfr(th.centre());
+        mix_double(th.radius());
+      }
+    }
+  }
+
+  // ---- CBall: every operation ---------------------------------------------
+  {
+    using zetaforge::CBall;
+    constexpr mpfr_prec_t P = 160;
+    CBall a(P), b(P), c(P);
+    mpfr_set_d(a.re, 3.25, MPFR_RNDN);
+    mpfr_set_d(a.im, -1.5, MPFR_RNDN);
+    a.rr = 0x1p-20;
+    a.ri = 0x1p-21;
+    mpfr_set_d(b.re, -0.75, MPFR_RNDN);
+    mpfr_set_d(b.im, 2.125, MPFR_RNDN);
+    b.rr = 0x1p-19;
+    b.ri = 0x1p-22;
+
+    mpfr_t cf;
+    mpfr_init2(cf, P);
+    mpfr_set_d(cf, 1.0 / 3.0, MPFR_RNDN);
+
+    for (int i = 0; i < 24; ++i) {
+      c = a;
+      c.mul(b, P);           // mul
+      c.add(a);              // add
+      c.mul_real(cf, 0x1p-30, P);  // mul_real
+      if ((i & 3) == 0) {
+        c.negate();          // negate
+      }
+      mix_mpfr(c.re);
+      mix_mpfr(c.im);
+      mix_double(c.rr);
+      mix_double(c.ri);
+      a = c;
+      if ((i & 7) == 7) {
+        a.set_zero();
+        mpfr_set_d(a.re, 3.25, MPFR_RNDN);
+        mpfr_set_d(a.im, -1.5, MPFR_RNDN);
+        a.rr = 0x1p-20;
+        a.ri = 0x1p-21;
+      }
+    }
+    mpfr_clear(cf);
+  }
 
   // Self-consistency: the sequence must produce a non-trivial digest.
   const uint64_t first = g_hash;
