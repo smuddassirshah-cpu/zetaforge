@@ -154,9 +154,68 @@ docs/REVIEW-2026-08-24.md:
   theorem on the critical line and under-reports by up to ~17x (review A2).
 All four are Phase 2 work, deferred to rev 6 by the scope decision above.
 
+## Stage 4 rev 5 (readiness review Phase 0 and Phase 1)
+
+Scope: docs/REVIEW-2026-08-24.md Phase 0 (items 1-7) and Phase 1 (items 8-12).
+Phase 2 (D8 rewrite, Backlund remainder bound, EM implementation, rs_main and
+rs_corr or a formal split of stage 4) was explicitly OUT of scope and no file
+under core/ was touched for D8 or EM logic.
+
+Closed by ID: A4 (record half only), B1, B2, B3, B4, B5, B6, C1, C2, C3, C4,
+C5, C6, C7, D1, D2, D3, D4, D5, D6.
+
+Deviations introduced this revision:
+- Stage 2 approved surfaces reopened for regression repair (B4, B5, B6). Logged
+  under Decisions above rather than folded into stage 4 work.
+- New build option ZF_ARM_STAGE4 (default OFF). The stage 4 suite is built
+  always but registered with ctest only when armed, because it is
+  pre-registered against a definition of done that no code satisfies yet. An
+  armed run exits 1 today, by design.
+- Ffix::from_int range guard repaired alongside Ffix::mul (same silent-wrap
+  family, not separately itemised in the review).
+- STATE.md stage 9 row corrected to match PLAN.md section 11.
+- The DECISIONS.md claim that the coefficient discovery tool's denominator caps
+  were fixed was itself false and is corrected in place. The tool is NOT
+  repaired: that is Phase 2 (review A4).
+
+Blocked by environment, not by the work:
+- Deletion of the merged review branch on the remote, and the push of tags
+  v0.2-kernel and v0.3-theta, are both refused by the git proxy
+  ("send-pack: unexpected disconnect"). Commits push normally. The tags exist
+  locally on 665f94c and the review branch is fully merged into main at the
+  same commit; both need a push from an unproxied clone.
+
+Verification: gate battery of 15 pre-registered mutations, all on fresh clean
+builds with the tree confirmed diff-clean afterwards. Results recorded in
+docs/gate/ATTACKS.md. Release and Debug suites 9/9 green, determinism hash
+6f9bd11475524faf in both configurations.
+
+Known gaps NOT closed this revision (carried forward):
+- Seed reporting is incomplete: test_ball and test_ntt print no SEED line, and
+  test_cball uses its own generator rather than the check.hpp seed stream, so
+  the stage 2 inherited obligation is only partly met.
+- MATHS.md O1 (Gabcke per-term constants) remains open and now has an explicit
+  consequence recorded: the theta safety factor is load-bearing, not headroom.
+
 ## Next action
-Rev 5 in progress: readiness-review Phase 0 (truth reset) and Phase 1 (repair of
-approved stage 2 surfaces, CBall rebuild, determinism-hash extension, tags).
-Rev 6 is Phase 2 (D8 rewrite, Backlund remainder bound, EM implementation, and
-either rs_main/rs_corr or a formal split of stage 4), which must not begin
-without an explicit "approved, continue" on rev 5.
+Rev 5 complete and awaiting gate review. Stage 4 remains "in progress": its
+definition of done is untouched by this revision by design.
+
+Rev 6 is readiness-review Phase 2 and must not begin without the literal reply
+"approved, continue":
+- Rewrite MATHS.md D8. |Z| = |zeta| carries no sign, so the current plan cannot
+  certify the gamma_1 sign bracket the stage 4 DoD requires (review A1).
+  Certified sub-t0 theta via the Gamma recurrence into Stirling validity with
+  the explicit Binet remainder, then Z = u cos(theta) - v sin(theta).
+- Replace the EM remainder policy. First-omitted-term times 4 is not a theorem
+  on the critical line and under-reports by up to about 17x at cost-minimal N
+  (review A2). Use Backlund's constant as a ball and pin N from the target
+  radius.
+- Implement zeta_em; the armed suite (ZF_ARM_STAGE4) turns green only then.
+- Add a Bernoulli oracle test, closing the one accepted blind spot in
+  docs/gate/ATTACKS.md.
+- Write the closed-form coefficient derivation into MATHS.md and repair or
+  retire tools/discover_theta_coefficients.py (review A4).
+- Deliver rs_main and rs_corr with D3, or formally split stage 4 with a logged
+  decision. The stage cannot gate while its title names work that does not
+  exist.
