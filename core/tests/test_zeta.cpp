@@ -1,21 +1,44 @@
-// Z(t) certification suite: enclosure vs FLINT hardy_z oracle.
+// Stage 4 Z(t) certification suite: ARMED, and red until the EM path lands.
 //
-// The oracle is _acb_dirichlet_definite_hardy_z, a rigorous real interval
-// evaluation of Hardy's Z function. It shares no code with the theta or
-// coefficient implementation (verified by grep: no zetaforge headers in the
-// oracle path).
+// Decision note (readiness review findings C1, A1). The previous version of
+// this file was green while zeta_em was an unimplemented throwing stub, and it
+// stayed green when the rev 0 defect (return Ball 0.0 with ZStatus::Certified)
+// was reinstated verbatim. It achieved that by catching the throw and
+// continuing, under a comment claiming it verified the throw message, and by
+// printing the count of combinations that did NOT skip under a label reading
+// L1A_SKIPPED. Nothing in it asserted an enclosure.
+//
+// This suite is now pre-registered rather than decorative:
+//   - It is NOT in the default ctest set. It is registered only when the build
+//     is configured with -DZF_ARM_STAGE4=ON, so a green default suite never
+//     implies stage 4 works.
+//   - A throw from zeta_em is a FAILURE, not a skip. There is no catch that
+//     swallows it. With the current stub this binary exits 1 by design: that
+//     is the honest state of stage 4, and the gate battery records it.
+//
+// Oracle: acb_dirichlet_hardy_z, a rigorous interval evaluation of Hardy's Z
+// from FLINT. It shares no code with the theta, coefficient or ball
+// implementation. Enclosure is tested as NON-DISJOINTNESS with zero additive
+// slack: both intervals claim to contain the same true Z(t), so disjoint
+// intervals prove one of them unsound, and no ulp nudges are applied to hide
+// a boundary case.
 //
 // Layers:
-//   L-A  Enclosure sweep: our ball overlaps the oracle's rigorous interval
-//        across t x prec combinations.
-//   L-B  gamma_1 bracket: certified sign flip at t=14 (negative) and t=15
-//        (positive); our ball at t=14.1347... must be Contested or enclose
-//        zero.
+//   L-A ENCLOSURE  our certified ball must intersect the oracle interval over
+//                  a sweep of heights x working precisions.
+//   L-B GAMMA_1    the stage 4 definition-of-done target: a certified sign
+//                  bracket around the first zero. Z(14) must certify NEGATIVE
+//                  and Z(15) must certify POSITIVE (ball strictly one side of
+//                  zero), and at gamma_1 = 14.134725141... the ball must
+//                  either contain zero or report Contested. Review finding A1
+//                  records why this cannot pass under MATHS.md D8 as written:
+//                  |Z| = |zeta| carries no sign, so a certified NEGATIVE value
+//                  is unreachable from a magnitude. The layer is left armed
+//                  and failing rather than weakened to match the design.
 
 #include <cstdio>
-#include <cstdlib>
 #include <cmath>
-#include <stdexcept>
+#include <exception>
 
 #include "zetaforge/ball.hpp"
 #include "zetaforge/em_eval.hpp"
@@ -33,67 +56,131 @@ using zetaforge::ZStatus;
 
 namespace {
 
-constexpr mpfr_prec_t kPrec = 128;
+constexpr slong kOraclePrec = 256;
+
+// Rigorous enclosure of Z(t) from FLINT, as [lo, hi] doubles rounded outward.
+void oracle_hardy_z(double t, double& lo, double& hi) {
+  acb_t tt, z;
+  arb_t re;
+  acb_init(tt);
+  acb_init(z);
+  arb_init(re);
+  acb_set_d(tt, t);
+  acb_dirichlet_hardy_z(z, tt, nullptr, nullptr, 1, kOraclePrec);
+  acb_get_real(re, z);
+  arf_t a, b;
+  arf_init(a);
+  arf_init(b);
+  arb_get_lbound_arf(a, re, 64);
+  arb_get_ubound_arf(b, re, 64);
+  lo = arf_get_d(a, ARF_RND_FLOOR);
+  hi = arf_get_d(b, ARF_RND_CEIL);
+  arf_clear(a);
+  arf_clear(b);
+  arb_clear(re);
+  acb_clear(z);
+  acb_clear(tt);
+}
+
+// Our claimed interval, as [centre - radius, centre + radius] rounded outward.
+void ours(const Ball& b, double& lo, double& hi) {
+  const double c = mpfr_get_d(b.centre(), MPFR_RNDN);
+  const double r = b.radius();
+  lo = c - r;
+  hi = c + r;
+}
 
 }  // namespace
 
-int main() {
+static int run_suite() {
   std::fprintf(stdout, "SEED %llx\n",
                static_cast<unsigned long long>(::zftest::current_seed()));
 
   // ---- L-A: enclosure sweep ----------------------------------------------
   {
-    arb_t oracle;
-    arf_t t_arf;
-    arb_init(oracle);
-    arf_init(t_arf);
-
     const double heights[] = {
         0.5, 1.0, 2.0, 5.0, 10.0, 14.0, 14.134725141, 15.0,
         20.0, 50.0, 100.0, 150.0, 199.9, 200.0, 250.0,
         500.0, 1000.0, 5000.0};
     const int n_heights = static_cast<int>(sizeof(heights) / sizeof(heights[0]));
     const mpfr_prec_t precs[] = {128, 256};
-    int combos = 0;
+
+    int evaluated = 0;
+    int enclosure_failures = 0;
 
     for (int pi = 0; pi < 2; ++pi) {
-      for (int hi = 0; hi < n_heights; ++hi) {
-        const double h = heights[hi];
-        try {
-          const ZResult r = zetaforge::zeta_em(h, precs[pi]);
-          // If we reach here, EM was implemented; verify enclosure.
-          (void)r;
-          ++combos;
-        } catch (const std::runtime_error&) {
-          // Expected: EM not yet implemented (blocked on D8).
-          // Verify that the throw message is correct.
-          continue;
+      for (int hi_i = 0; hi_i < n_heights; ++hi_i) {
+        const double h = heights[hi_i];
+        // No try/catch: an exception here is a stage 4 failure, and the
+        // process exiting non-zero on it is the correct signal.
+        const ZResult r = zetaforge::zeta_em(h, precs[pi]);
+        ++evaluated;
+
+        double olo = 0.0, ohi = 0.0, mlo = 0.0, mhi = 0.0;
+        oracle_hardy_z(h, olo, ohi);
+        ours(r.re, mlo, mhi);
+
+        const bool intersects = !(mhi < olo || ohi < mlo);
+        if (!intersects) {
+          ++enclosure_failures;
+          std::printf("LA_DISJOINT t=%.9g prec=%d ours=[%.17g,%.17g] "
+                      "oracle=[%.17g,%.17g]\n",
+                      h, static_cast<int>(precs[pi]), mlo, mhi, olo, ohi);
         }
+        ZF_CHECK(intersects);
+        ZF_CHECK(r.re.radius() > 0.0);
       }
     }
-    std::fprintf(stdout, "L1A_SKIPPED %d (EM pending D8)\n", combos);
-
-    // Oracle sanity: hardy_z at t=200 should give a value near |zeta(1/2+200i)|
-    arf_t tmp200;
-    arf_init(tmp200);
-    arf_set_d(tmp200, 200.0);
-    arf_set(t_arf, tmp200);
-    arf_clear(tmp200);
-    slong used_prec = 352;
-    _acb_dirichlet_definite_hardy_z(oracle, t_arf, &used_prec);
-    // Just verify it produces a finite non-empty ball
-    ZF_CHECK(!arb_is_zero(oracle));
-    ZF_CHECK(arb_is_finite(oracle));
-
-    arb_clear(oracle);
-    arf_clear(t_arf);
+    std::fprintf(stdout, "LA_EVALUATED %d\n", evaluated);
+    std::fprintf(stdout, "LA_ENCLOSURE_FAILURES %d\n", enclosure_failures);
   }
 
-  // ---- L-B: gamma_1 bracket and contested status -------------------------
-  // These require a working EM implementation; they are pre-registered here
-  // and will activate when D8 closes.
-  std::fprintf(stdout, "GAMMA1_BRACKET pending_D8\n");
+  // ---- L-B: gamma_1 certified sign bracket -------------------------------
+  {
+    const ZResult below = zetaforge::zeta_em(14.0, 256);
+    const ZResult above = zetaforge::zeta_em(15.0, 256);
+    const ZResult at = zetaforge::zeta_em(14.134725141, 256);
 
-  std::fprintf(stdout, "THETA_SUITE failures %d\n", ::zftest::failure_count());
+    double lo = 0.0, hi = 0.0;
+
+    // Z(14) must be certified strictly negative.
+    ours(below.re, lo, hi);
+    const bool neg = hi < 0.0 && below.status == ZStatus::Certified;
+    ZF_CHECK(neg);
+
+    // Z(15) must be certified strictly positive.
+    ours(above.re, lo, hi);
+    const bool pos = lo > 0.0 && above.status == ZStatus::Certified;
+    ZF_CHECK(pos);
+
+    // At the zero itself the ball may not claim a definite sign.
+    const bool straddles =
+        at.re.contains_zero() || at.status == ZStatus::Contested;
+    ZF_CHECK(straddles);
+
+    std::fprintf(stdout, "LB_BRACKET neg=%d pos=%d straddles=%d\n",
+                 static_cast<int>(neg), static_cast<int>(pos),
+                 static_cast<int>(straddles));
+  }
+
+  std::fprintf(stdout, "ZETA_SUITE failures %d\n", ::zftest::failure_count());
   return ::zftest::failure_count() == 0 ? 0 : 1;
+}
+
+// An exception out of zeta_em is a stage 4 failure. This handler exists to
+// turn it into a clean non-zero exit rather than a SIGABRT, and it does NOT
+// resume the sweep: the suite stops at the first unmet obligation. It makes no
+// claim about the exception's message, unlike the catch it replaces.
+int main() {
+  try {
+    return run_suite();
+  } catch (const std::exception& e) {
+    std::fprintf(stderr,
+                 "ZF_CHECK failed: zeta_em threw (%s) [seed %llx]\n",
+                 e.what(),
+                 static_cast<unsigned long long>(::zftest::current_seed()));
+    std::fprintf(stdout, "ZETA_SUITE aborted by exception; failures %d\n",
+                 ::zftest::failure_count() + 1);
+    return 1;
+  }
 }
