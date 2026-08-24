@@ -97,9 +97,10 @@ int main() {
   ZF_CHECK(threw);
 
   // ---- L1+L2: enclosure sweep against the committed corpus -------------
-  // The oracle is mpmath loggamma (independent derivation path), arbitrated
-  // against zeta-phase consistency to <= 1e-54; FLINT's acb_lgamma proved
-  // unusable as an oracle (see MATHS.md O2) and is not used here.
+  // The oracle is mpmath loggamma (independent derivation path), committed as
+  // the golden corpus. FLINT's acb_lgamma is NOT used here, and not because it
+  // is defective: the reported defect was retracted as a harness artefact
+  // (MATHS.md O2). No live oracle layer exists in this suite; see the header.
   {
     std::ifstream fh(golden_path());
     ZF_CHECK(fh.good());

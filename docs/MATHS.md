@@ -58,7 +58,7 @@ claim whose status here is "pending" past the stage that needs it.
   tables quoted in Arias de Reyna 2011) to replace the factor-4 headroom in
   D1's bound with an exact constant.
 - O2 (RETRACTED as library defect; REINSTATED as harness-bug record): the
-  reported acb_lgamma-vs-mpmath divergence was a double-conversion artifact of
+  reported acb_lgamma-vs-mpmath divergence was a double-conversion artefact of
   the measurement harness - FLINT interval midpoints were printed through
   %g doubles while reference values were compared at full precision, and one
   early oracle probe accidentally called _acb_dirichlet_theta_argument_at_arb
@@ -67,11 +67,10 @@ claim whose status here is "pending" past the stage that needs it.
   comparison after parse-precision fixes shows our centre inside the FLINT
   enclosure at every (t, prec) combination (84 combos). Reproduction of the
   false positive: compare arb midpoint via mpfr_get_d against a full-precision
-  reference and read the difference at double granularity.
-  loggamma disagree by ~2.3e-14 absolute at z = 0.25 + 100i regardless of
-  working precision (400..800 bits). Our implementation agrees with mpmath.
-  Worth an upstream report before any future reliance on acb_lgamma at high
-  precision.
+  reference and read the difference at double granularity. Independent
+  re-testing on 2026-08-24 (review finding D3) reconfirmed the retraction:
+  acb_lgamma is rigorous at every precision probed, there is no upstream
+  defect, and no upstream report is warranted.
 
 ## Verified external constants
 

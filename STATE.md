@@ -121,7 +121,7 @@ Re-measured attack ledger (fresh builds, verified binary timestamps):
 
 ## Stage 3 attack ledger (final)
 - Bound-tightening x0.9 via ZF_TEST_BOUND_SCALE: L3 policy-equality check FAILS under scale (exit=1), passes clean. Deterministic, seed-independent.
-- FLINT acb_lgamma anomaly (O2): characterised precisely - at z=0.25+200i, acb_lgamma returns a ZERO-WIDTH ball whose midpoint excludes the true value (mpmath-confirmed to 30 digits) by ~3.6e-15, invariant across 400..800-bit working precision. Upstream-reportable. Consequence: mpmath goldens are the primary theta oracle; no FLINT lgamma layer in the suite.
+- FLINT acb_lgamma anomaly (O2): RETRACTED 2026-08-23, re-confirmed retracted by independent re-testing 2026-08-24 (review finding D3). acb_lgamma is correct. The reported divergence was an artefact of the measurement harness: FLINT interval midpoints were read through %g double conversions against full-precision references, and one early probe called _acb_dirichlet_theta_argument_at_arb by mistake. There is no upstream defect and nothing here is reportable upstream. The consequence stands on its own merits: mpmath goldens are the theta oracle of record and the suite carries no FLINT lgamma layer (see review D4 and MATHS.md O2).
 - Stale-binary incidents during development (twice): incremental builds silently linked outdated objects, faking pass/fail inversions. Clean-rebuild discipline adopted for every gate measurement; CI clean-builds by construction.
 
 ## Stage 3 rev 1 verification battery (final build)
