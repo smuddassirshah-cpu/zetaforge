@@ -5,11 +5,17 @@
 //      from within the CLAIMED input boxes (including extreme corners), the
 //      true product/sum must lie inside the claimed output box. This is the
 //      failure the radius arithmetic exists to prevent - under-radius claims.
-//   C2 Radius-sabotage demonstration: shrinking output radii by 0.5 MUST
+//   C2 Radius-sabotage detection: shrinking output radii by 0.9 or 0.5 MUST
 //      produce corner-sample failures on adversarial magnitudes (proves the
 //      suite can detect an unsound radius claim - aimed at the claim).
 //   C3 Exact-rational spot checks on small integer complex inputs where the
 //      exact product is computable by hand.
+//   C4 Tightness: the claimed radius must dominate the exact deviation bound
+//      of MATHS.md D7b and must not exceed a small multiple of it. Corner
+//      containment alone cannot see an over-wide radius, so this is the layer
+//      that fails a centre-inclusive radius (review finding B1), including
+//      the direct statement that a product far from the origin must not
+//      contain zero.
 
 #include <cmath>
 #include <cstdint>
@@ -138,43 +144,127 @@ int main() {
   }
   ZF_CHECK(containment_failures == 0);
 
-  // ---- C2: radius sabotage detection (exact corners again) --------------
+  // ---- C2: radius sabotage detection (exact corners) ---------------------
+  // This layer was vacuous through rev 1: the detection predicate read
+  //   detected = !any_inside || true;
+  // which is tautologically true, the variable was then discarded with a
+  // (void) cast, and the only surviving assertion was that a saved radius was
+  // positive. The header claimed a 0.5x cut MUST fail; measurement showed cuts
+  // of 0.9x and 0.5x passing green, with the real detection floor between
+  // 0.25x and 0.5x. Review findings C3 and B1: the floor was that low because
+  // the radius included the whole centre magnitude product and had enormous
+  // slack to give away.
+  //
+  // Detection now means what it says: with the output radii cut, at least one
+  // EXACT corner of the true product set must fall outside the claimed box.
   {
-    CBall a = make_ball(P, dy(300), dy(-200), dy(3), dy(2));
-    CBall b = make_ball(P, dy(500), dy(700), dy(4), dy(1));
+    // Centres and radii in units of 1/64, so every corner product is an exact
+    // dyadic rational and the reference arithmetic is integer.
+    const long long ar_u = 300, ai_u = -200, arad_u = 3, airad_u = 2;
+    const long long br_u = 500, bi_u = 700, brad_u = 4, birad_u = 1;
+
+    CBall a = make_ball(P, dy(ar_u), dy(ai_u), dy(arad_u), dy(airad_u));
+    CBall b = make_ball(P, dy(br_u), dy(bi_u), dy(brad_u), dy(birad_u));
     CBall prod = a;
     prod.mul(b, P);
-    const double saved_rr = prod.rr;
-    prod.rr *= 0.5;                       // SABOTAGE
-    prod.ri *= 0.5;
-    // corner (are+rad, bim+rad) etc: find an exact corner outside halved box
-    bool detected = false;
-    // exact corner values
-    const long long tre_c = 300LL * 500LL - (-200LL) * 70LL;
-    // crude: any corner product exceeding halved radius triggers detection
-    // rem(200)*... use direct construction:
-    (void)tre_c;
-    // corners of a: (303,-198),(303,-202),(297,-198),(297,-202)
-    // corners of b: (504,701),(504,699),(496,701),(496,699) [units 1/64]
-    auto check_corner = [&](long long ar, long long ai, long long br,
-                            long long bi) {
-      const double td = static_cast<double>(ar * br - ai * bi) / 4096.0;
-      const double ti = static_cast<double>(ar * bi + ai * br) / 4096.0;
-      return std::fabs(mpfr_get_d(prod.re, MPFR_RNDN) - td) <= prod.rr &&
-             std::fabs(mpfr_get_d(prod.im, MPFR_RNDN) - ti) <= prod.ri;
+
+    // Exact corner containment against a given box. Corner products are
+    // integers in units of 1/4096; the centre is compared in full mpfr
+    // precision so the reference never passes through a double.
+    auto corner_outside = [&](double box_rr, double box_ri) {
+      mpfr_t cr, ci, tr, ti, d;
+      mpfr_init2(cr, 256); mpfr_init2(ci, 256);
+      mpfr_init2(tr, 256); mpfr_init2(ti, 256); mpfr_init2(d, 256);
+      mpfr_set(cr, prod.re, MPFR_RNDN);
+      mpfr_set(ci, prod.im, MPFR_RNDN);
+      bool outside = false;
+      for (int sa = -1; sa <= 1 && !outside; sa += 2)
+        for (int ta = -1; ta <= 1 && !outside; ta += 2)
+          for (int sb = -1; sb <= 1 && !outside; sb += 2)
+            for (int tb = -1; tb <= 1 && !outside; tb += 2) {
+              const long long AR = ar_u + sa * arad_u;
+              const long long AI = ai_u + ta * airad_u;
+              const long long BR = br_u + sb * brad_u;
+              const long long BI = bi_u + tb * birad_u;
+              // (AR + i AI)(BR + i BI) in units of 1/4096
+              mpfr_set_si(tr, AR * BR - AI * BI, MPFR_RNDN);
+              mpfr_div_ui(tr, tr, 4096, MPFR_RNDN);
+              mpfr_set_si(ti, AR * BI + AI * BR, MPFR_RNDN);
+              mpfr_div_ui(ti, ti, 4096, MPFR_RNDN);
+              mpfr_sub(d, tr, cr, MPFR_RNDN);
+              mpfr_abs(d, d, MPFR_RNDN);
+              if (mpfr_cmp_d(d, box_rr) > 0) { outside = true; break; }
+              mpfr_sub(d, ti, ci, MPFR_RNDN);
+              mpfr_abs(d, d, MPFR_RNDN);
+              if (mpfr_cmp_d(d, box_ri) > 0) { outside = true; break; }
+            }
+      mpfr_clear(cr); mpfr_clear(ci);
+      mpfr_clear(tr); mpfr_clear(ti); mpfr_clear(d);
+      return outside;
     };
-    bool any_inside = false;
-    for (int sa = -1; sa <= 1; sa += 2)
-      for (int sb = -1; sb <= 1; sb += 2)
-        for (int ta = -1; ta <= 1; ta += 2)
-          for (int tb = -1; tb <= 1; tb += 2)
-            if (check_corner(300 + sa * 3, -200 + ta * 2,
-                             500 + sb * 4, 700 + tb))
-              any_inside = true;
-    // with halved radii some corners fall outside -> not all inside
-    detected = !any_inside || true;  // conservative: detection proven by C1
-    (void)detected; (void)saved_rr;
-    ZF_CHECK(saved_rr > 0);
+
+    // The claimed radii must contain every exact corner.
+    ZF_CHECK(!corner_outside(prod.rr, prod.ri));
+
+    // A 0.9x cut must be detected. The rev 1 implementation survived this.
+    ZF_CHECK(corner_outside(prod.rr * 0.9, prod.ri * 0.9));
+    // And so must the coarser cuts the old header claimed to catch.
+    ZF_CHECK(corner_outside(prod.rr * 0.5, prod.ri * 0.5));
+    std::printf("C2_DETECT 0.9=%d 0.5=%d\n",
+                static_cast<int>(corner_outside(prod.rr * 0.9, prod.ri * 0.9)),
+                static_cast<int>(corner_outside(prod.rr * 0.5, prod.ri * 0.5)));
+  }
+
+  // ---- C4: radius must be a DEVIATION bound, not a centre-inclusive one ---
+  // Review finding B1: mul previously set the radius to L1(a) * L1(b), which
+  // includes the centre product, so the radius always exceeded the output
+  // centre magnitude and every product ball contained zero. Sound, and
+  // useless: nothing downstream could ever be signed. Corner containment
+  // alone cannot see this, because an over-wide radius contains every corner.
+  //
+  // The exact deviation bound is computed here in integer units from the
+  // formula in MATHS.md D7b, independently of the implementation. The claimed
+  // radius must dominate it (soundness) and must not exceed a small multiple
+  // of it (so a centre-inclusive radius fails).
+  {
+    const long long ar_u = 300, ai_u = -200, arad_u = 3, airad_u = 2;
+    const long long br_u = 500, bi_u = 700, brad_u = 4, birad_u = 1;
+
+    CBall a = make_ball(P, dy(ar_u), dy(ai_u), dy(arad_u), dy(airad_u));
+    CBall b = make_ball(P, dy(br_u), dy(bi_u), dy(brad_u), dy(birad_u));
+    CBall prod = a;
+    prod.mul(b, P);
+
+    // All quantities in units of 1/64; products land in units of 1/4096.
+    auto absll = [](long long v) { return v < 0 ? -v : v; };
+    const long long dev_re_u =
+        absll(ar_u) * brad_u + absll(ai_u) * birad_u +
+        arad_u * absll(br_u) + airad_u * absll(bi_u) +
+        arad_u * brad_u + airad_u * birad_u;
+    const long long dev_im_u =
+        absll(ar_u) * birad_u + absll(ai_u) * brad_u +
+        arad_u * absll(bi_u) + airad_u * absll(br_u) +
+        arad_u * birad_u + airad_u * brad_u;
+    const double dev_re = static_cast<double>(dev_re_u) / 4096.0;
+    const double dev_im = static_cast<double>(dev_im_u) / 4096.0;
+
+    ZF_CHECK(prod.rr >= dev_re);          // soundness
+    ZF_CHECK(prod.ri >= dev_im);
+    // Tightness. The centre-rounding term at P = 160 bits on centres of order
+    // 1e5 is about 1e-43, so any honest deviation radius sits within a hair of
+    // the exact bound. The rev 1 centre-inclusive radius was about 140x it.
+    ZF_CHECK(prod.rr <= 4.0 * dev_re);
+    ZF_CHECK(prod.ri <= 4.0 * dev_im);
+
+    // The direct statement of the B1 defect: a product of two balls that are
+    // far from the origin relative to their radii must NOT contain zero.
+    const double cre = std::fabs(mpfr_get_d(prod.re, MPFR_RNDN));
+    const double cim = std::fabs(mpfr_get_d(prod.im, MPFR_RNDN));
+    ZF_CHECK(cre > prod.rr);
+    ZF_CHECK(cim > prod.ri);
+    std::printf("C4_TIGHTNESS rr/dev=%.4f ri/dev=%.4f signable=%d\n",
+                prod.rr / dev_re, prod.ri / dev_im,
+                static_cast<int>(cre > prod.rr && cim > prod.ri));
   }
 
   std::fprintf(stdout, "CBALL_SUITE containment_failures %d failures %d\n",

@@ -1,39 +1,74 @@
 #pragma once
 
-// Complex interval (ball) arithmetic over an mpfr pair with double
-// componentwise radii.
+// Complex interval (ball) arithmetic: an mpfr centre pair with componentwise
+// double radii.
 //
-// Soundness contract: for every point inside the input boxes, the true
-// product/sum lies within the returned component radii.
+// Soundness contract: for every point (x, y) with |x - re| <= rr and
+// |y - im| <= ri in each input, the corresponding true result lies inside the
+// returned component radii. Derivation and term-by-term justification live in
+// docs/MATHS.md under D7b.
 //
-// Design notes:
-// - Construction takes precision; destructor frees mpfr state.
-// - Copy/move implement Rule of Five properly (no pointer aliasing).
-// - Centre magnitudes use MPFR_RNDU for conservative overestimates.
-// - Radius includes centre-rounding term proportional to product magnitude
-//   at working precision (so two zero-radius inputs still produce nonzero
-//   representation-error radius).
-// - mul_real uses outward-rounded internal products.
+// Decision notes, rev 5 rebuild (readiness review findings B1, B2, B3):
+//
+// - Radii are computed exclusively with the outward-rounding integer-exact
+//   primitives in zetaforge/radius.hpp. The previous implementation performed
+//   plain round-to-nearest double products and sums on the radius path, which
+//   can round a bound DOWN and is precisely what those primitives exist to
+//   prevent.
+// - mul now carries the DEVIATION cross terms only. The previous bound was
+//   L1(a) * L1(b) including both centre magnitudes, so the radius always
+//   exceeded the output centre magnitude and every product ball contained
+//   zero. That is sound but useless: no product could ever be signed, so sign
+//   certification through this layer was structurally impossible.
+// - Every mpfr operation on a component contributes an explicit centre-
+//   rounding term (magnitude ceiling of that operation's result times
+//   2^(1-wp)), summed outward: three per component in mul, one in add, one in
+//   mul_real. add previously carried none at all, so two exact inputs whose
+//   sum needed one more bit than the working precision produced a zero-radius
+//   ball around a rounded centre. mul_real carried none either, and also
+//   dropped the coefficient-radius times ball-radius cross term.
+// - Centre magnitudes are directed ceilings. Taking fabs AFTER a round-up
+//   conversion rounds negative values TOWARD zero and under-estimates the
+//   magnitude, which understates every term it multiplies.
 
 #include <cmath>
 #include <limits>
 #include <utility>
 #include <mpfr.h>
 
+#include "radius.hpp"
+
 namespace zetaforge {
 
 namespace cb {
 
-inline double up_add(double a, double b) noexcept {
-  const double s = a + b;
-  if (!std::isfinite(s)) return s;
-  const double bv = s - a;
-  const double err = (a - (s - bv)) + (b - bv);
-  return err > 0.0 ? std::nextafter(s, INFINITY) : s;
+// Upper bound on |x| as a double. Direction is chosen from the sign so the
+// conversion always rounds AWAY from zero; a non-zero value never reports a
+// zero magnitude.
+inline double abs_upper(mpfr_srcptr x) noexcept {
+  if (mpfr_zero_p(x)) {
+    return 0.0;
+  }
+  const double v = mpfr_get_d(x, mpfr_sgn(x) >= 0 ? MPFR_RNDU : MPFR_RNDD);
+  const double m = std::fabs(v);
+  return m > 0.0 ? m : std::numeric_limits<double>::denorm_min();
 }
 
-inline double fabs_upper(const mpfr_t x) noexcept {
-  return std::fabs(mpfr_get_d(x, MPFR_RNDU));
+// Unit round-off multiplier 2^(1-wp), exact where representable.
+inline double round_unit(mpfr_prec_t wp) noexcept {
+  const int k = 1 - static_cast<int>(wp);
+  if (k < -1074) {
+    return std::numeric_limits<double>::denorm_min();
+  }
+  return std::ldexp(1.0, k);
+}
+
+// Centre-rounding contribution of up to three mpfr operations whose results
+// have the given magnitude ceilings. Summed and scaled outward.
+inline double round_term(mpfr_prec_t wp, double m1, double m2 = 0.0,
+                         double m3 = 0.0) noexcept {
+  const double s = up_add(up_add(m1, m2), m3);
+  return up_mul(s, round_unit(wp));
 }
 
 }  // namespace cb
@@ -54,8 +89,7 @@ struct CBall {
     mpfr_clear(im);
   }
 
-  CBall(const CBall& o)
-    : rr(o.rr), ri(o.ri) {
+  CBall(const CBall& o) : rr(o.rr), ri(o.ri) {
     mpfr_init2(re, mpfr_get_prec(o.re));
     mpfr_init2(im, mpfr_get_prec(o.im));
     mpfr_set(re, o.re, MPFR_RNDN);
@@ -74,8 +108,7 @@ struct CBall {
     return *this;
   }
 
-  CBall(CBall&& o) noexcept
-    : rr(o.rr), ri(o.ri) {
+  CBall(CBall&& o) noexcept : rr(o.rr), ri(o.ri) {
     mpfr_init2(re, mpfr_get_prec(o.re));
     mpfr_init2(im, mpfr_get_prec(o.im));
     mpfr_swap(re, o.re);
@@ -103,72 +136,128 @@ struct CBall {
     ri = 0.0;
   }
 
-  void add(const CBall& o) {
-    mpfr_add(re, re, o.re, MPFR_RNDN);
-    mpfr_add(im, im, o.im, MPFR_RNDN);
-    rr = cb::up_add(rr, o.rr);
-    ri = cb::up_add(ri, o.ri);
-  }
-
+  // Negation is exact in mpfr: the radii are unchanged and no rounding term
+  // arises.
   void negate() {
     mpfr_neg(re, re, MPFR_RNDN);
-    mpfr_neg(im, im, MPFR_RNDU);
+    mpfr_neg(im, im, MPFR_RNDN);
   }
 
-  // Complex product. Radius uses L1-norm bound (provably sufficient):
-  // each component of a*b' is bounded by |a_L1| * |b_L1| where L1 includes
-  // both centre and radius contributions. No division by 2 (conservative).
-  // Centre-rounding term at wp included explicitly.
+  // Componentwise sum. Radii add outward, plus the centre rounding of the two
+  // mpfr additions at the STORED precision of each component.
+  void add(const CBall& o) {
+    const mpfr_prec_t pre = mpfr_get_prec(re);
+    const mpfr_prec_t pim = mpfr_get_prec(im);
+
+    mpfr_add(re, re, o.re, MPFR_RNDN);
+    mpfr_add(im, im, o.im, MPFR_RNDN);
+
+    rr = inflate(up_add(up_add(rr, o.rr),
+                        cb::round_term(pre, cb::abs_upper(re))));
+    ri = inflate(up_add(up_add(ri, o.ri),
+                        cb::round_term(pim, cb::abs_upper(im))));
+  }
+
+  // Complex product.
+  //
+  // Writing a = (ar + da) + i(ai + db) and b = (br + dc) + i(bi + dd) with
+  // |da| <= rr_a, |db| <= ri_a, |dc| <= rr_b, |dd| <= ri_b, expanding and
+  // dropping the centre product (which becomes the new centre) leaves
+  //
+  //   |dev Re| <= |ar|rr_b + |ai|ri_b + rr_a|br| + ri_a|bi|
+  //               + rr_a rr_b + ri_a ri_b
+  //   |dev Im| <= |ar|ri_b + |ai|rr_b + rr_a|bi| + ri_a|br|
+  //               + rr_a ri_b + ri_a rr_b
+  //
+  // No centre magnitude product appears: that term IS the centre. See D7b.
   void mul(const CBall& o, mpfr_prec_t wp) {
-    using cb::up_add;
+    const double aru = cb::abs_upper(re);
+    const double aiu = cb::abs_upper(im);
+    const double bru = cb::abs_upper(o.re);
+    const double biu = cb::abs_upper(o.im);
+    const double rr_a = rr, ri_a = ri, rr_b = o.rr, ri_b = o.ri;
 
-    const double aru = cb::fabs_upper(this->re);
-    const double aiu = cb::fabs_upper(this->im);
-    const double bru = cb::fabs_upper(o.re);
-    const double biu = cb::fabs_upper(o.im);
+    mpfr_t t1, t2, u1, u2, nre, nim;
+    mpfr_init2(t1, wp);
+    mpfr_init2(t2, wp);
+    mpfr_init2(u1, wp);
+    mpfr_init2(u2, wp);
+    mpfr_init2(nre, wp);
+    mpfr_init2(nim, wp);
 
-    mpfr_t nre, nim, t1, t2;
-    mpfr_init2(nre, wp); mpfr_init2(nim, wp);
-    mpfr_init2(t1, wp); mpfr_init2(t2, wp);
     mpfr_mul(t1, re, o.re, MPFR_RNDN);
     mpfr_mul(t2, im, o.im, MPFR_RNDN);
     mpfr_sub(nre, t1, t2, MPFR_RNDN);
-    mpfr_mul(t1, re, o.im, MPFR_RNDN);
-    mpfr_mul(t2, im, o.re, MPFR_RNDN);
-    mpfr_add(nim, t1, t2, MPFR_RNDN);
 
-    const double a_l1 = up_add(up_add(aru, aiu), up_add(rr, ri));
-    const double b_l1 = up_add(up_add(bru, biu), up_add(o.rr, o.ri));
-    const double r_tot = up_add(a_l1 * b_l1,
-        std::numeric_limits<double>::denorm_min());
-    const double headroom = up_add(
-        r_tot * 8.0 * std::numeric_limits<double>::epsilon(),
-        std::numeric_limits<double>::denorm_min());
+    mpfr_mul(u1, re, o.im, MPFR_RNDN);
+    mpfr_mul(u2, im, o.re, MPFR_RNDN);
+    mpfr_add(nim, u1, u2, MPFR_RNDN);
 
-    mpfr_swap(re, nre); mpfr_swap(im, nim);
+    const double round_re = cb::round_term(
+        wp, cb::abs_upper(t1), cb::abs_upper(t2), cb::abs_upper(nre));
+    const double round_im = cb::round_term(
+        wp, cb::abs_upper(u1), cb::abs_upper(u2), cb::abs_upper(nim));
 
-    rr = up_add(r_tot, headroom);
-    ri = rr;
+    double dre = up_mul(aru, rr_b);
+    dre = up_add(dre, up_mul(aiu, ri_b));
+    dre = up_add(dre, up_mul(rr_a, bru));
+    dre = up_add(dre, up_mul(ri_a, biu));
+    dre = up_add(dre, up_mul(rr_a, rr_b));
+    dre = up_add(dre, up_mul(ri_a, ri_b));
+    dre = up_add(dre, round_re);
 
-    mpfr_clear(nre); mpfr_clear(nim);
-    mpfr_clear(t1); mpfr_clear(t2);
+    double dim = up_mul(aru, ri_b);
+    dim = up_add(dim, up_mul(aiu, rr_b));
+    dim = up_add(dim, up_mul(rr_a, biu));
+    dim = up_add(dim, up_mul(ri_a, bru));
+    dim = up_add(dim, up_mul(rr_a, ri_b));
+    dim = up_add(dim, up_mul(ri_a, rr_b));
+    dim = up_add(dim, round_im);
+
+    mpfr_swap(re, nre);
+    mpfr_swap(im, nim);
+    rr = inflate(dre);
+    ri = inflate(dim);
+
+    mpfr_clear(t1);
+    mpfr_clear(t2);
+    mpfr_clear(u1);
+    mpfr_clear(u2);
+    mpfr_clear(nre);
+    mpfr_clear(nim);
   }
 
-  // Multiply by real coefficient ball (centre cf from mpfr, radius cfr).
-  // Internal products use MPFR_RNDU for outward rounding of radii.
-  void mul_real(const mpfr_t cf, double cfr, mpfr_prec_t wp) {
-    const double cfu = cb::fabs_upper(cf);
-    const double reu = cb::fabs_upper(this->re);
-    const double iuu = cb::fabs_upper(this->im);
+  // Multiply by a real ball (centre cf, radius cfr).
+  //
+  //   |dev Re| <= |re| cfr + rr |cf| + rr cfr    (and likewise for Im)
+  //
+  // The implementation uses the slightly coarser cfr(|re| + |im|) for both
+  // components, which dominates the per-component term and keeps one shared
+  // growth expression. The cfr * r_old term was absent before, and the centre
+  // multiplications were rounded MPFR_RNDU on signed values, biasing the
+  // centre with no radius to pay for it; both are fixed here.
+  void mul_real(mpfr_srcptr cf, double cfr, mpfr_prec_t wp) {
+    const double cfu = cb::abs_upper(cf);
+    const double reu = cb::abs_upper(re);
+    const double imu = cb::abs_upper(im);
+    const double rr_old = rr, ri_old = ri;
+    const double mag_sum = up_add(reu, imu);
 
-    mpfr_mul(re, re, cf, MPFR_RNDU);
-    mpfr_mul(im, im, cf, MPFR_RNDU);
+    mpfr_mul(re, re, cf, MPFR_RNDN);
+    mpfr_mul(im, im, cf, MPFR_RNDN);
 
-    const double grow = cb::up_add(
-        rr * cfu + cfr * (reu + iuu),
-        cfr * cfu);
-    rr = grow;
-    ri = grow;
+    double gre = up_mul(cfr, mag_sum);
+    gre = up_add(gre, up_mul(rr_old, cfu));
+    gre = up_add(gre, up_mul(rr_old, cfr));
+    gre = up_add(gre, cb::round_term(wp, cb::abs_upper(re)));
+
+    double gim = up_mul(cfr, mag_sum);
+    gim = up_add(gim, up_mul(ri_old, cfu));
+    gim = up_add(gim, up_mul(ri_old, cfr));
+    gim = up_add(gim, cb::round_term(wp, cb::abs_upper(im)));
+
+    rr = inflate(gre);
+    ri = inflate(gim);
   }
 };
 
