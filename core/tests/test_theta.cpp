@@ -1,22 +1,29 @@
-// Theta certification suite. Closes MATHS.md D1/D2.
+// Theta certification suite. Covers MATHS.md D1/D2.
 //
-// Three verification layers, each with a demonstrated failure mode:
+// TWO verification layers ship here. An earlier revision of this header and of
+// DECISIONS.md described a third, "L1 ENCLOSURE" against FLINT acb_lgamma
+// intervals over 84 combinations. That layer has never existed in any
+// committed tree; the claim is struck (readiness review finding D4). A live
+// enclosure layer is Phase 2 work, if it is built at all. Nothing below may
+// describe a layer this file does not execute.
 //
-//   L1 ENCLOSURE (rigorous): FLINT acb_lgamma intervals (independently
-//       derived implementation) must overlap our claimed interval with zero
-//       additive slack - oracle bounds used exactly as returned, our interval
-//       shrunk inward by directed rounding only. Swept over
-//       t in [200, 3e12] x prec in {128, 192, 256, 512}.
 //   L2 GOLDEN: committed mpmath values compared in full mpfr precision;
 //       tolerance is exactly the certified radius (no additive fudge).
+//       Corpus quantisation (~170 significant digits) sits far below every
+//       certified radius, so the comparison is not corpus-limited.
 //   L3 POLICY EQUALITY: radius equals an independent transcription of the
 //       full derivation (remainder x safety + mpfr slack + coefficient
 //       representation slack), within 1e-3 relative (the transcription
 //       approximates post-series |centre| in closed form; that difference is
 //       provably < 1e-3 for t >= 200).
 //
-// Sabotage hooks:
-//   ZF_IMPL_RADIUS_SCALE  scales production radius -> breaks L1 enclosure
+// Known limit, recorded rather than hidden (review finding A3): L2 cannot see
+// a radius that is merely too small in the regime where the mpfr slack term
+// dominates, and the D1 truncation bound is empirically calibrated, not
+// proven, until MATHS.md O1 closes. L3 is what detects production drift.
+//
+// Sabotage hooks (compile-time gated: ZF_SABOTAGE_HOOKS, see core/src/sabotage.cpp):
+//   ZF_IMPL_RADIUS_SCALE  scales production radius -> breaks L2 and L3
 //   ZF_TEST_BOUND_SCALE   scales transcribed bound  -> breaks L3 equality
 //   ZF_GOLDEN_PATH        points at corrupted corpus -> breaks L2
 
