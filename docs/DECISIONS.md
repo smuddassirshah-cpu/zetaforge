@@ -116,12 +116,13 @@ interviewer's first follow-up is always "compared to what?".
 - 2026-08-22 (stage 3). Theta architecture: certified asymptotic series in
   production (6 terms + safety-factored first-omitted remainder bound,
   t >= 200 per Gabcke), mpmath-derived golden corpus as the empirical oracle
-  (20 heights, 40-digit values committed), NO FLINT lgamma layer. Rationale:
-  coefficient discovery and global Newton polish against mpmath loggamma
-  produced a series matching the oracle to <= 4e-62 absolute across the full
-  range, while FLINT 3.6.0's own acb_lgamma proved untrustworthy at the
-  required level (zero-width ball excluding truth by ~3.6e-15, precision-
-  independent) - logged as open item O2 for upstream report.
+  (20 heights, values committed at ~170 significant digits), NO FLINT lgamma
+  layer. SUPERSEDED in part: the original rationale cited a global Newton
+  polish (retracted at stage 3 rev 1 as a degenerate overfit) and an
+  acb_lgamma defect (retracted under O2 as a harness artefact; acb_lgamma is
+  correct). The decision to keep mpmath goldens as the oracle of record stands
+  on its own merits, namely an independent derivation path and committed
+  reference values, not on any FLINT defect.
 - 2026-08-22 (stage 3). Coefficients stored as 30-digit decimal strings
   parsed into mpfr at runtime, not doubles: double representation of c_1
   alone injected a 5.7e-21 absolute error at t=200 - three orders above the
