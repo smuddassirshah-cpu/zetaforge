@@ -27,10 +27,17 @@ class Ffix {
 
   static Ffix from_int(long v) {
     Ffix f;
-    if (v > 0 && static_cast<raw_t>(v) > (static_cast<raw_t>(1) << 120)) {
+    // The contract is on the RAW word, which is v << 64, so the admissible
+    // range for v is |v| < 2^56. The previous guard compared v itself against
+    // 2^120 and ignored negatives entirely, so it admitted values whose raw
+    // word overflowed the 128-bit word outright. Same silent-wrap family as
+    // the mul defect above (review B5).
+    const raw_t lim = static_cast<raw_t>(1) << 56;
+    const raw_t vv = static_cast<raw_t>(v);
+    if (!(vv < lim && vv > -lim)) {
       throw std::overflow_error("ffix range");
     }
-    f.raw_ = static_cast<raw_t>(v) << 64;
+    f.raw_ = vv << 64;
     return f;
   }
 
@@ -80,12 +87,28 @@ class Ffix {
     const unsigned __int128 low = (unsigned __int128)al * bl;
 
     const uint64_t lost = static_cast<uint64_t>(low);
+
+    // Overflow must be decided BEFORE the shift, not after it. Gate finding
+    // (review B5): `res = top << 64` wraps modulo 2^128 whenever top >= 2^64,
+    // and the range test below then inspected the wrapped value. With the
+    // operand contract |raw| < 2^120 the high limbs satisfy ah, bh < 2^56, so
+    // top can reach 2^112 and the shift discarded 49 bits in silence:
+    // from_int(2^32).mul(from_int(2^32)) returned raw 0 with err 1 and no
+    // throw, against this file's own "products beyond range throw rather than
+    // wrap silently".
+    //
+    // The result is floor(M / 2^64) for M = |a|*|b|, so overflow means
+    // M >= 2^191. Bit-length form: top = ah*bh is the top limb of M, and
+    // top >= 2^63 implies res >= top*2^64 >= 2^127. Rejecting that first makes
+    // the shift exact (top < 2^63 gives top<<64 < 2^127), after which the
+    // assembled range test below is itself exact. mid < 2^121 and low >> 64 <
+    // 2^64 under the same operand contract, so the sum cannot wrap either.
+    if (!(top < (unsigned __int128)1 << 63)) {
+      throw std::overflow_error("ffix mul overflow");
+    }
     unsigned __int128 res = top << 64;
     res += mid;
     res += static_cast<unsigned __int128>(low >> 64);
-    if (!(res < (unsigned __int128)1 << 127)) {
-      throw std::overflow_error("ffix mul overflow");
-    }
     if (!(res < (unsigned __int128)1 << 127)) {
       throw std::overflow_error("ffix mul overflow");
     }
