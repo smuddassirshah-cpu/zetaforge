@@ -267,6 +267,63 @@ int main() {
                 static_cast<int>(cre > prod.rr && cim > prod.ri));
   }
 
+  // ---- C5: the centre-rounding term is taken at the precision the result is
+  // actually rounded into (R6-1) ------------------------------------------
+  // mul_real rounded its products in place, at each component's STORED
+  // precision, while charging the rounding term at wp. With a stored precision
+  // below wp the charge under-reports the error actually committed: a 53-bit
+  // ball at centre 1 multiplied by a 200-bit coefficient carrying 100 bits of
+  // new information returned a ball around 1.0 whose radius was ~2^-199, while
+  // the true product 1 + 2^-100 sat 2^-100 away. The products now go into
+  // temporaries at wp and are swapped in, so every CBall component is stored at
+  // wp after mul and mul_real.
+  {
+    constexpr mpfr_prec_t kStored = 53;
+    constexpr mpfr_prec_t kWp = 200;
+
+    CBall a(kStored);
+    mpfr_set_d(a.re, 1.0, MPFR_RNDN);
+    mpfr_set_d(a.im, 0.0, MPFR_RNDN);
+    a.rr = 0.0;
+    a.ri = 0.0;
+
+    mpfr_t cf;
+    mpfr_init2(cf, kWp);
+    mpfr_set_ui(cf, 1, MPFR_RNDN);
+    mpfr_t eps;
+    mpfr_init2(eps, kWp);
+    mpfr_set_ui(eps, 1, MPFR_RNDN);
+    mpfr_div_2si(eps, eps, 100, MPFR_RNDN);   // 2^-100, exact at 200 bits
+    mpfr_add(cf, cf, eps, MPFR_RNDN);         // 1 + 2^-100, exact at 200 bits
+
+    a.mul_real(cf, 0.0, kWp);
+
+    // Exact truth: 1 * (1 + 2^-100) = 1 + 2^-100, held at 300 bits.
+    mpfr_t truth, dev;
+    mpfr_init2(truth, 300);
+    mpfr_init2(dev, 300);
+    mpfr_set_ui(truth, 1, MPFR_RNDN);
+    mpfr_set_ui(dev, 1, MPFR_RNDN);
+    mpfr_div_2si(dev, dev, 100, MPFR_RNDN);
+    mpfr_add(truth, truth, dev, MPFR_RNDN);
+    mpfr_sub(dev, truth, a.re, MPFR_RNDN);
+    mpfr_abs(dev, dev, MPFR_RNDN);
+
+    const bool encloses = mpfr_cmp_d(dev, a.rr) <= 0;
+    ZF_CHECK(encloses);
+    ZF_CHECK(mpfr_get_prec(a.re) == kWp);
+    ZF_CHECK(mpfr_get_prec(a.im) == kWp);
+    std::printf("C5_PRECISION_RULE encloses=%d dev=%.6g rr=%.6g "
+                "stored_after=%d\n",
+                static_cast<int>(encloses), mpfr_get_d(dev, MPFR_RNDN), a.rr,
+                static_cast<int>(mpfr_get_prec(a.re)));
+
+    mpfr_clear(cf);
+    mpfr_clear(eps);
+    mpfr_clear(truth);
+    mpfr_clear(dev);
+  }
+
   std::fprintf(stdout, "CBALL_SUITE containment_failures %d failures %d\n",
                containment_failures, ::zftest::failure_count());
   return ::zftest::failure_count() == 0 ? 0 : 1;

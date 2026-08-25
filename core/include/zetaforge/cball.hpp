@@ -30,6 +30,14 @@
 // - Centre magnitudes are directed ceilings. Taking fabs AFTER a round-up
 //   conversion rounds negative values TOWARD zero and under-estimates the
 //   magnitude, which understates every term it multiplies.
+//
+// Precision rule (rev 6, finding R6-1). A centre-rounding term is charged at
+// the precision the result is actually rounded into, never at a nominal
+// working precision the operation does not use. mul and mul_real build their
+// results in fresh temporaries at wp and swap them in, so both charge at wp
+// and leave every component stored at wp; add rounds in place and charges each
+// component at that component's own stored precision. mul_real broke this rule
+// through rev 5.
 
 #include <cmath>
 #include <limits>
@@ -235,7 +243,16 @@ struct CBall {
   // components, which dominates the per-component term and keeps one shared
   // growth expression. The cfr * r_old term was absent before, and the centre
   // multiplications were rounded MPFR_RNDU on signed values, biasing the
-  // centre with no radius to pay for it; both are fixed here.
+  // centre with no radius to pay for it; both were fixed at rev 5.
+  //
+  // The products go into temporaries at wp and are swapped in, mirroring mul,
+  // so the centre-rounding term is charged at the precision the result is
+  // actually rounded into. Through rev 5 the multiplication ran in place at
+  // each component's STORED precision while the term was still taken at wp:
+  // for a stored precision below wp that under-reports the error committed,
+  // and a 53-bit ball at centre 1 times a 200-bit coefficient 1 + 2^-100
+  // returned a ball around 1.0 of radius ~2^-199 that excluded the true
+  // product (R6-1; regression in test_cball layer C5).
   void mul_real(mpfr_srcptr cf, double cfr, mpfr_prec_t wp) {
     const double cfu = cb::abs_upper(cf);
     const double reu = cb::abs_upper(re);
@@ -243,21 +260,29 @@ struct CBall {
     const double rr_old = rr, ri_old = ri;
     const double mag_sum = up_add(reu, imu);
 
-    mpfr_mul(re, re, cf, MPFR_RNDN);
-    mpfr_mul(im, im, cf, MPFR_RNDN);
+    mpfr_t nre, nim;
+    mpfr_init2(nre, wp);
+    mpfr_init2(nim, wp);
+    mpfr_mul(nre, re, cf, MPFR_RNDN);
+    mpfr_mul(nim, im, cf, MPFR_RNDN);
 
     double gre = up_mul(cfr, mag_sum);
     gre = up_add(gre, up_mul(rr_old, cfu));
     gre = up_add(gre, up_mul(rr_old, cfr));
-    gre = up_add(gre, cb::round_term(wp, cb::abs_upper(re)));
+    gre = up_add(gre, cb::round_term(wp, cb::abs_upper(nre)));
 
     double gim = up_mul(cfr, mag_sum);
     gim = up_add(gim, up_mul(ri_old, cfu));
     gim = up_add(gim, up_mul(ri_old, cfr));
-    gim = up_add(gim, cb::round_term(wp, cb::abs_upper(im)));
+    gim = up_add(gim, cb::round_term(wp, cb::abs_upper(nim)));
 
+    mpfr_swap(re, nre);
+    mpfr_swap(im, nim);
     rr = inflate(gre);
     ri = inflate(gim);
+
+    mpfr_clear(nre);
+    mpfr_clear(nim);
   }
 };
 
