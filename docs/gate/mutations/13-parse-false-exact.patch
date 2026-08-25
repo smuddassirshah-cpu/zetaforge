@@ -1,0 +1,13 @@
+diff --git a/core/src/ball.cpp b/core/src/ball.cpp
+index 301964e..42eae83 100644
+--- a/core/src/ball.cpp
++++ b/core/src/ball.cpp
+@@ -100,7 +100,7 @@ double Ball::representation_radius(mpfr_srcptr c) {
+     return kInf;  // beyond double range: unknown_at_precision, never a number
+   }
+   if (k < -1074) {
+-    return std::numeric_limits<double>::denorm_min();  // never false-exact
++    return 0.0;  // subnormal-range floor removed: ATTACKS.md row 13
+   }
+   return std::ldexp(1.0, static_cast<int>(k));
+ }

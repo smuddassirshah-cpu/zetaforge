@@ -94,14 +94,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: production code must not read the environment
-        run: |
-          hits=$(grep -rn "getenv" core/src core/include | grep -v "core/src/sabotage.cpp" || true)
-          if [ -n "$hits" ]; then
-            echo "$hits"
-            echo "FAIL: environment read in production code outside core/src/sabotage.cpp"
-            exit 1
-          fi
-          echo "OK: no environment reads in production code outside the gated sabotage unit"
+        run: ./tools/check_no_env_knobs.sh
+
+  # Every row of docs/gate/ATTACKS.md, on fresh clean builds, with the tree
+  # asserted diff-clean between rows. Push-only: it rebuilds the tree once per
+  # row and is the gate evidence, not a per-PR smoke test.
+  gate-battery:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: install numeric dependencies
+        run: sudo apt-get update && sudo apt-get install -y libgmp-dev libmpfr-dev libflint-dev pkg-config
+      - name: run every ATTACKS.md row
+        run: ./tools/gate_battery.sh
 
   sabotage-battery:
     runs-on: ubuntu-latest

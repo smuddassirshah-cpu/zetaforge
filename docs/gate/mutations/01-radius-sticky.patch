@@ -1,0 +1,13 @@
+diff --git a/core/include/zetaforge/radius.hpp b/core/include/zetaforge/radius.hpp
+index 56f389d..b60d438 100644
+--- a/core/include/zetaforge/radius.hpp
++++ b/core/include/zetaforge/radius.hpp
+@@ -76,7 +76,7 @@ inline double round_up_positive(unsigned __int128 M, int E,
+     q = M << (53 - bl);
+     E -= 53 - bl;
+   }
+-  if (sticky) ++q;
++  if (sticky) { /* sticky bump removed: ATTACKS.md row 1 */ }
+   if (q == ((unsigned __int128)1 << 53)) {
+     q >>= 1;
+     ++E;

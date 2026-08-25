@@ -1,0 +1,15 @@
+diff --git a/core/include/zetaforge/cball.hpp b/core/include/zetaforge/cball.hpp
+index da578e4..9e7404f 100644
+--- a/core/include/zetaforge/cball.hpp
++++ b/core/include/zetaforge/cball.hpp
+@@ -224,8 +224,8 @@ struct CBall {
+ 
+     mpfr_swap(re, nre);
+     mpfr_swap(im, nim);
+-    rr = inflate(dre);
+-    ri = inflate(dim);
++    rr = inflate(dre * 0.5);
++    ri = inflate(dim * 0.5);
+ 
+     mpfr_clear(t1);
+     mpfr_clear(t2);

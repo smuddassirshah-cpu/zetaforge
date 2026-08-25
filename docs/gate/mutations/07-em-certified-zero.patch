@@ -1,0 +1,15 @@
+diff --git a/core/src/em_eval.cpp b/core/src/em_eval.cpp
+index b4ada71..6e287e1 100644
+--- a/core/src/em_eval.cpp
++++ b/core/src/em_eval.cpp
+@@ -40,9 +40,7 @@ ZResult zeta_em(double t, mpfr_prec_t prec) {
+   // docs/REVIEW-2026-08-24.md findings A1 and A2: the |zeta| plan in D8
+   // cannot certify a sign change, and the first-omitted-term policy is not a
+   // theorem on the critical line.
+-  throw std::runtime_error(
+-      "zeta_em: not yet implemented; blocked on D8 sub-t0 derivation "
+-      "and EM tail remainder monotone-check derivation");
++  return ZResult{Ball::from_double(0.0, prec), ZStatus::Certified};
+ }
+ 
+ }  // namespace zetaforge

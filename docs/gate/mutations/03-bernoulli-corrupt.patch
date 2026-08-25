@@ -1,0 +1,13 @@
+diff --git a/core/src/em_eval.cpp b/core/src/em_eval.cpp
+index b4ada71..f578b25 100644
+--- a/core/src/em_eval.cpp
++++ b/core/src/em_eval.cpp
+@@ -11,7 +11,7 @@ namespace {
+ 
+ constexpr int kBernMaxK = 10;
+ constexpr long long kBNum[kBernMaxK] = {
+-    1, -1, 1, -1, 5, -691, 7, -3617, 43867, -174611};
++    1, -1, 1, -1, 5, -692, 7, -3617, 43867, -174611};
+ constexpr long long kBDen[kBernMaxK] = {
+     6, 30, 42, 30, 66, 2730, 6, 510, 798, 330};
+ 
