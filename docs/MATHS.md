@@ -18,7 +18,7 @@ claim whose status here is "pending" past the stage that needs it.
 | D5 | Turing-method window accounting with explicit S(T) bounds (Trudgian lineage) | stage 5 | pending |
 | D6 | Isolation cost factor model (evaluations per zero); early low-height estimate measured at stage 5 over [0,10^6], campaign-height figure confirmed at stage 9(a-i); both compared against the 2x reserve | stage 5 (estimate), stage 9(a-i) (confirmed) | pending |
 | D7 | Ball operation error bounds: centre rounding enters via half_ulp_bound of the rounded result; radius terms outward-rounded by integer-exact primitives (radius.hpp); no binary op exact. Soundness enforced structurally: bit-exact integer reference suite (test_radius), not statistical | stage 2 | done-by-construction + test_radius |
-| D7b | Complex ball (CBall) operation bounds: componentwise deviation bounds for add, mul and mul_real, each carrying an explicit centre-rounding term at the working precision, all radius arithmetic performed with the outward integer-exact primitives of radius.hpp. Derivation below. Soundness AND tightness are both tested: corner containment cannot see an over-wide radius, so test_cball layer C4 additionally asserts the claimed radius lies within a small multiple of the exact deviation bound | stage 4 | done, tests core/tests/test_cball.cpp layers C1-C4 |
+| D7b | Complex ball (CBall) operation bounds: componentwise deviation bounds for add, mul and mul_real, each carrying an explicit centre-rounding term charged at the precision the result is actually rounded into (mul and mul_real round into temporaries at wp and store at wp; add rounds in place at the stored precision), all radius arithmetic performed with the outward integer-exact primitives of radius.hpp. Derivation below. Soundness AND tightness are both tested: corner containment cannot see an over-wide radius, so test_cball layer C4 additionally asserts the claimed radius lies within a small multiple of the exact deviation bound; layer C5 pins the precision rule | stage 4 | done, tests core/tests/test_cball.cpp layers C1-C5 |
 | D8 | Sub-t0 Z(t): below t0=200, compute zeta(1/2+it) directly by Euler-Maclaurin (no theta needed); Z(t)=Re[e^{i theta}]zeta collapses to |zeta| when theta is not separated; instead return the complex ball and let callers extract Re via e^{i theta} above t0 or use |zeta| as a lower bound for enclosure purposes below t0. EM remainder: first omitted Bernoulli term x SAFETY, monotone-checked at runtime | stage 4 | pending |
 
 ## D7b derivation: complex ball operation bounds
@@ -66,7 +66,27 @@ Multiplication by a real ball (cf, cfr). Re(a * c) = ar cf + ar dc + p cf +
 p dc with |dc| <= cfr, giving |dev Re| <= |ar| cfr + rr_a |cf| + rr_a cfr,
 and likewise for Im. The implementation uses cfr(|ar| + |ai|) in place of the
 first term for both components, which dominates it. One mpfr multiplication
-per component contributes |result| * 2^(1-wp).
+per component contributes |result| * 2^(1-wp), and that product is formed in a
+fresh temporary at wp and swapped in, exactly as mul does, so 2^(1-wp) is the
+precision the result is genuinely rounded into.
+
+Precision rule (all three operations). The centre-rounding term is charged at
+the precision the result is actually rounded into, never at a nominal working
+precision the operation does not use. mul and mul_real build their results in
+temporaries at wp and swap them in, so both charge at wp and leave every
+component stored at wp; add rounds in place and charges each component at that
+component's own stored precision, which is wp for any value that has already
+passed through mul or mul_real.
+
+Rev 6 correction (R6-1). Through rev 5, mul_real multiplied in place at each
+component's STORED precision while still charging round_term at wp. Where the
+stored precision was below wp the charge under-reported the error actually
+committed and the operation was unsound, not merely loose: a ball at 53 bits
+with centre 1 and radius 0, times cf = 1 + 2^-100 held at 200 bits with
+cfr = 0 and wp = 200, returned centre 1.0 with radius ~2^-199 while the true
+product sits 2^-100 away. The sentence above previously described the wp
+charge as though the code took it there; it now does. Regression: test_cball
+layer C5, which fails on the rev 5 implementation and passes on this one.
 
 Rounding directions. Every radius quantity above is combined with up_add and
 up_mul from radius.hpp, which round outward and are bit-exact by construction
