@@ -1,21 +1,37 @@
 // Complex-ball arithmetic tests.
 //
+// Decision notes.
+//
+// Every layer runs against all three operations (mul, add, mul_real). Through
+// rev 5 only mul was covered, so mul_real's precision defect (R6-1) and add's
+// bounds were untested by C1, C2 and C4 alike; the parity is the point of this
+// revision (R6-2).
+//
+// Stored precision and working precision are drawn INDEPENDENTLY from
+// {53, 128, 160, 256} on the check.hpp seed stream. A suite that always used
+// stored == wp could not see a term charged at the wrong precision, which is
+// exactly the defect C5 pins.
+//
+// All reference arithmetic is exact. Ball centres are dyadic m * 2^e with
+// |m| < 2^20, so they are representable without loss at every precision in the
+// pool, and every reference quantity is computed in mpfr at kRefPrec where
+// those dyadics and their products are exact. No comparison passes through a
+// double.
+//
 // Layers:
-//   C1 Monte-Carlo corner sampling: for random balls and random points drawn
-//      from within the CLAIMED input boxes (including extreme corners), the
-//      true product/sum must lie inside the claimed output box. This is the
-//      failure the radius arithmetic exists to prevent - under-radius claims.
-//   C2 Radius-sabotage detection: shrinking output radii by 0.9 or 0.5 MUST
-//      produce corner-sample failures on adversarial magnitudes (proves the
-//      suite can detect an unsound radius claim - aimed at the claim).
-//   C3 Exact-rational spot checks on small integer complex inputs where the
-//      exact product is computable by hand.
-//   C4 Tightness: the claimed radius must dominate the exact deviation bound
-//      of MATHS.md D7b and must not exceed a small multiple of it. Corner
-//      containment alone cannot see an over-wide radius, so this is the layer
-//      that fails a centre-inclusive radius (review finding B1), including
-//      the direct statement that a product far from the origin must not
-//      contain zero.
+//   C1 exact dyadic corner containment: every corner of the true result set
+//      must lie inside the claimed output box. This is the under-radius
+//      failure the radius arithmetic exists to prevent.
+//   C2 cut detection: shrinking the claimed radii by 0.9 or 0.5 must push at
+//      least one exact corner outside the box. A suite that passes with and
+//      without a correct radius is worthless (stage 2 gate doctrine).
+//   C3 exact-rational spot checks on small integer complex inputs.
+//   C4 tightness: the claimed radius must dominate the exact deviation bound
+//      of MATHS.md D7b and must not exceed four times the full D7b bound
+//      (deviation plus centre rounding). Corner containment cannot see an
+//      over-wide radius; this layer is what fails a centre-inclusive one.
+//   C5 precision rule: the centre-rounding term is charged at the precision
+//      the result is actually rounded into (R6-1).
 
 #include <cmath>
 #include <cstdint>
@@ -29,242 +45,515 @@ using zetaforge::CBall;
 
 namespace {
 
-uint64_t g_rng = UINT64_C(0xC0FFEE123456789A);
-uint64_t next_u64() {
-  uint64_t z = (g_rng += UINT64_C(0x9E3779B97F4A7C15));
-  z = (z ^ (z >> 30)) * UINT64_C(0xBF58476D1CE4E5B9);
-  z = (z ^ (z >> 27)) * UINT64_C(0x94D049BB133111EB);
-  return z ^ (z >> 31);
+constexpr mpfr_prec_t kRefPrec = 600;
+constexpr mpfr_prec_t kPrecPool[4] = {53, 128, 160, 256};
+constexpr int kTrials = 300;
+
+mpfr_prec_t pick_prec() {
+  return kPrecPool[::zftest::rng().next() & 3];
 }
 
-double uniform_pm(double half) {
-  // uniform in [-half, +half]
-  const double u = static_cast<double>(next_u64() >> 11) / 9007199254740992.0;
-  return (2.0 * u - 1.0) * half;
+// Exact dyadic value m * 2^e. |m| < 2^20 keeps it representable at 53 bits.
+struct Dy {
+  long long m;
+  int e;
+};
+
+Dy pick_centre() {
+  const uint64_t r = ::zftest::rng().next();
+  long long m = static_cast<long long>(r % 1048576ULL);   // < 2^20
+  if ((r >> 20) & 1) m = -m;
+  const int e = -static_cast<int>((r >> 21) % 71ULL);     // 2^-70 .. 2^0
+  return {m, e};
 }
 
-struct Pt { double re, im; };
-
-bool inside(const Pt& p, const CBall& b) {
-  return std::fabs(p.re - mpfr_get_d(b.re, MPFR_RNDN)) <= b.rr &&
-         std::fabs(p.im - mpfr_get_d(b.im, MPFR_RNDN)) <= b.ri;
+// Radii are exact dyadic doubles: p * 2^f with p < 2^10.
+double pick_radius() {
+  const uint64_t r = ::zftest::rng().next();
+  const int p = static_cast<int>(r % 1024ULL);
+  const int f = -static_cast<int>((r >> 10) % 61ULL);     // 2^-60 .. 2^0
+  return std::ldexp(static_cast<double>(p), f);
 }
 
-Pt sample_corner(const CBall& b) {
-  // deliberately biased to extremes: sign pattern from RNG
-  const double sr = (next_u64() & 1) ? 1.0 : -1.0;
-  const double si = (next_u64() & 1) ? 1.0 : -1.0;
-  return {mpfr_get_d(b.re, MPFR_RNDN) + sr * b.rr,
-          mpfr_get_d(b.im, MPFR_RNDN) + si * b.ri};
-}
+// RAII mpfr scalar at the reference precision.
+struct Mp {
+  mpfr_t v;
+  Mp() { mpfr_init2(v, kRefPrec); mpfr_set_zero(v, 0); }
+  explicit Mp(double d) { mpfr_init2(v, kRefPrec); mpfr_set_d(v, d, MPFR_RNDN); }
+  explicit Mp(const Dy& d) {
+    mpfr_init2(v, kRefPrec);
+    mpfr_set_si(v, d.m, MPFR_RNDN);
+    mpfr_mul_2si(v, v, d.e, MPFR_RNDN);
+  }
+  Mp(const Mp&) = delete;
+  Mp& operator=(const Mp&) = delete;
+  ~Mp() { mpfr_clear(v); }
+};
 
-CBall make_ball(mpfr_prec_t p, double re_c, double im_c, double rr, double ri) {
+// b = ball with dyadic centre and exact dyadic radii, at stored precision p.
+CBall make_ball(mpfr_prec_t p, const Dy& cre, const Dy& cim, double rr,
+                double ri) {
   CBall b(p);
-  mpfr_set_d(b.re, re_c, MPFR_RNDN);
-  mpfr_set_d(b.im, im_c, MPFR_RNDN);
-  b.rr = std::fabs(rr);
-  b.ri = std::fabs(ri);
+  const Mp x(cre), y(cim);
+  // Exact: |m| < 2^20 and p >= 53.
+  mpfr_set(b.re, x.v, MPFR_RNDN);
+  mpfr_set(b.im, y.v, MPFR_RNDN);
+  b.rr = rr;
+  b.ri = ri;
   return b;
+}
+
+// |value - centre| <= box, in full reference precision.
+bool within(mpfr_srcptr value, mpfr_srcptr centre, double box) {
+  Mp d;
+  mpfr_sub(d.v, value, centre, MPFR_RNDN);   // exact at kRefPrec here
+  mpfr_abs(d.v, d.v, MPFR_RNDN);
+  return mpfr_cmp_d(d.v, box) <= 0;
+}
+
+// ---- exact corner enumeration -------------------------------------------
+//
+// Each callback receives the exact result components of one corner of the true
+// input set. Every corner coordinate is an exact dyadic, so every product and
+// sum below is exact at kRefPrec.
+
+template <typename F>
+void corners_mul(const Dy& ar, const Dy& ai, double rr_a, double ri_a,
+                 const Dy& br, const Dy& bi, double rr_b, double ri_b, F&& f) {
+  const Mp AR(ar), AI(ai), BR(br), BI(bi);
+  const Mp RA(rr_a), IA(ri_a), RB(rr_b), IB(ri_b);
+  Mp x, y, u, v, t1, t2, re, im;
+  for (int s1 = -1; s1 <= 1; s1 += 2)
+    for (int s2 = -1; s2 <= 1; s2 += 2)
+      for (int s3 = -1; s3 <= 1; s3 += 2)
+        for (int s4 = -1; s4 <= 1; s4 += 2) {
+          (s1 > 0 ? mpfr_add : mpfr_sub)(x.v, AR.v, RA.v, MPFR_RNDN);
+          (s2 > 0 ? mpfr_add : mpfr_sub)(y.v, AI.v, IA.v, MPFR_RNDN);
+          (s3 > 0 ? mpfr_add : mpfr_sub)(u.v, BR.v, RB.v, MPFR_RNDN);
+          (s4 > 0 ? mpfr_add : mpfr_sub)(v.v, BI.v, IB.v, MPFR_RNDN);
+          mpfr_mul(t1.v, x.v, u.v, MPFR_RNDN);
+          mpfr_mul(t2.v, y.v, v.v, MPFR_RNDN);
+          mpfr_sub(re.v, t1.v, t2.v, MPFR_RNDN);
+          mpfr_mul(t1.v, x.v, v.v, MPFR_RNDN);
+          mpfr_mul(t2.v, y.v, u.v, MPFR_RNDN);
+          mpfr_add(im.v, t1.v, t2.v, MPFR_RNDN);
+          f(re.v, im.v);
+        }
+}
+
+template <typename F>
+void corners_add(const Dy& ar, const Dy& ai, double rr_a, double ri_a,
+                 const Dy& br, const Dy& bi, double rr_b, double ri_b, F&& f) {
+  const Mp AR(ar), AI(ai), BR(br), BI(bi);
+  const Mp RA(rr_a), IA(ri_a), RB(rr_b), IB(ri_b);
+  Mp x, y, u, v, re, im;
+  for (int s1 = -1; s1 <= 1; s1 += 2)
+    for (int s2 = -1; s2 <= 1; s2 += 2)
+      for (int s3 = -1; s3 <= 1; s3 += 2)
+        for (int s4 = -1; s4 <= 1; s4 += 2) {
+          (s1 > 0 ? mpfr_add : mpfr_sub)(x.v, AR.v, RA.v, MPFR_RNDN);
+          (s2 > 0 ? mpfr_add : mpfr_sub)(y.v, AI.v, IA.v, MPFR_RNDN);
+          (s3 > 0 ? mpfr_add : mpfr_sub)(u.v, BR.v, RB.v, MPFR_RNDN);
+          (s4 > 0 ? mpfr_add : mpfr_sub)(v.v, BI.v, IB.v, MPFR_RNDN);
+          mpfr_add(re.v, x.v, u.v, MPFR_RNDN);
+          mpfr_add(im.v, y.v, v.v, MPFR_RNDN);
+          f(re.v, im.v);
+        }
+}
+
+template <typename F>
+void corners_mul_real(const Dy& ar, const Dy& ai, double rr_a, double ri_a,
+                      const Dy& cf, double cfr, F&& f) {
+  const Mp AR(ar), AI(ai), CF(cf);
+  const Mp RA(rr_a), IA(ri_a), CR(cfr);
+  Mp x, y, c, re, im;
+  for (int s1 = -1; s1 <= 1; s1 += 2)
+    for (int s2 = -1; s2 <= 1; s2 += 2)
+      for (int s3 = -1; s3 <= 1; s3 += 2) {
+        (s1 > 0 ? mpfr_add : mpfr_sub)(x.v, AR.v, RA.v, MPFR_RNDN);
+        (s2 > 0 ? mpfr_add : mpfr_sub)(y.v, AI.v, IA.v, MPFR_RNDN);
+        (s3 > 0 ? mpfr_add : mpfr_sub)(c.v, CF.v, CR.v, MPFR_RNDN);
+        mpfr_mul(re.v, x.v, c.v, MPFR_RNDN);
+        mpfr_mul(im.v, y.v, c.v, MPFR_RNDN);
+        f(re.v, im.v);
+      }
+}
+
+// ---- exact D7b bounds, transcribed independently of the implementation ----
+
+void acc(mpfr_ptr out, mpfr_srcptr a, mpfr_srcptr b, mpfr_ptr tmp) {
+  mpfr_mul(tmp, a, b, MPFR_RNDN);
+  mpfr_add(out, out, tmp, MPFR_RNDN);
+}
+
+// Deviation part of D7b for mul, plus the three-operation centre-rounding term.
+void bound_mul(const Dy& ar, const Dy& ai, double rr_a, double ri_a,
+               const Dy& br, const Dy& bi, double rr_b, double ri_b,
+               mpfr_prec_t wp, mpfr_ptr dev_re, mpfr_ptr dev_im,
+               mpfr_ptr full_re, mpfr_ptr full_im) {
+  const Mp AR(ar), AI(ai), BR(br), BI(bi);
+  const Mp RA(rr_a), IA(ri_a), RB(rr_b), IB(ri_b);
+  Mp aar, aai, abr, abi, tmp;
+  mpfr_abs(aar.v, AR.v, MPFR_RNDN);
+  mpfr_abs(aai.v, AI.v, MPFR_RNDN);
+  mpfr_abs(abr.v, BR.v, MPFR_RNDN);
+  mpfr_abs(abi.v, BI.v, MPFR_RNDN);
+
+  mpfr_set_zero(dev_re, 0);
+  acc(dev_re, aar.v, RB.v, tmp.v);
+  acc(dev_re, aai.v, IB.v, tmp.v);
+  acc(dev_re, RA.v, abr.v, tmp.v);
+  acc(dev_re, IA.v, abi.v, tmp.v);
+  acc(dev_re, RA.v, RB.v, tmp.v);
+  acc(dev_re, IA.v, IB.v, tmp.v);
+
+  mpfr_set_zero(dev_im, 0);
+  acc(dev_im, aar.v, IB.v, tmp.v);
+  acc(dev_im, aai.v, RB.v, tmp.v);
+  acc(dev_im, RA.v, abi.v, tmp.v);
+  acc(dev_im, IA.v, abr.v, tmp.v);
+  acc(dev_im, RA.v, IB.v, tmp.v);
+  acc(dev_im, IA.v, RB.v, tmp.v);
+
+  // Centre rounding: three mpfr operations per component, each charged
+  // |result| * 2^(1-wp) at the precision the result is rounded into.
+  Mp t1, t2, nre, nim, r;
+  mpfr_mul(t1.v, AR.v, BR.v, MPFR_RNDN);
+  mpfr_mul(t2.v, AI.v, BI.v, MPFR_RNDN);
+  mpfr_sub(nre.v, t1.v, t2.v, MPFR_RNDN);
+  mpfr_abs(r.v, t1.v, MPFR_RNDN);
+  mpfr_abs(t1.v, t2.v, MPFR_RNDN);
+  mpfr_add(r.v, r.v, t1.v, MPFR_RNDN);
+  mpfr_abs(t1.v, nre.v, MPFR_RNDN);
+  mpfr_add(r.v, r.v, t1.v, MPFR_RNDN);
+  mpfr_mul_2si(r.v, r.v, 1 - static_cast<int>(wp), MPFR_RNDN);
+  mpfr_add(full_re, dev_re, r.v, MPFR_RNDN);
+
+  mpfr_mul(t1.v, AR.v, BI.v, MPFR_RNDN);
+  mpfr_mul(t2.v, AI.v, BR.v, MPFR_RNDN);
+  mpfr_add(nim.v, t1.v, t2.v, MPFR_RNDN);
+  mpfr_abs(r.v, t1.v, MPFR_RNDN);
+  mpfr_abs(t1.v, t2.v, MPFR_RNDN);
+  mpfr_add(r.v, r.v, t1.v, MPFR_RNDN);
+  mpfr_abs(t1.v, nim.v, MPFR_RNDN);
+  mpfr_add(r.v, r.v, t1.v, MPFR_RNDN);
+  mpfr_mul_2si(r.v, r.v, 1 - static_cast<int>(wp), MPFR_RNDN);
+  mpfr_add(full_im, dev_im, r.v, MPFR_RNDN);
+}
+
+void bound_add(const Dy& ar, const Dy& ai, double rr_a, double ri_a,
+               const Dy& br, const Dy& bi, double rr_b, double ri_b,
+               mpfr_prec_t stored, mpfr_ptr dev_re, mpfr_ptr dev_im,
+               mpfr_ptr full_re, mpfr_ptr full_im) {
+  const Mp AR(ar), AI(ai), BR(br), BI(bi);
+  mpfr_set_d(dev_re, rr_a, MPFR_RNDN);
+  mpfr_add_d(dev_re, dev_re, rr_b, MPFR_RNDN);
+  mpfr_set_d(dev_im, ri_a, MPFR_RNDN);
+  mpfr_add_d(dev_im, dev_im, ri_b, MPFR_RNDN);
+
+  // One mpfr addition per component, charged at the STORED precision, which
+  // is the precision add rounds into.
+  Mp s, r;
+  mpfr_add(s.v, AR.v, BR.v, MPFR_RNDN);
+  mpfr_abs(r.v, s.v, MPFR_RNDN);
+  mpfr_mul_2si(r.v, r.v, 1 - static_cast<int>(stored), MPFR_RNDN);
+  mpfr_add(full_re, dev_re, r.v, MPFR_RNDN);
+
+  mpfr_add(s.v, AI.v, BI.v, MPFR_RNDN);
+  mpfr_abs(r.v, s.v, MPFR_RNDN);
+  mpfr_mul_2si(r.v, r.v, 1 - static_cast<int>(stored), MPFR_RNDN);
+  mpfr_add(full_im, dev_im, r.v, MPFR_RNDN);
+}
+
+// dev_* is the exact per-component deviation bound of D7b; full_* adds the
+// one-operation centre rounding at wp. Both are attained at a corner, so the
+// implementation has no slack to give away here and a 0.9x cut is visible.
+void bound_mul_real(const Dy& ar, const Dy& ai, double rr_a, double ri_a,
+                    const Dy& cf, double cfr, mpfr_prec_t wp,
+                    mpfr_ptr dev_re, mpfr_ptr dev_im,
+                    mpfr_ptr full_re, mpfr_ptr full_im) {
+  const Mp AR(ar), AI(ai), CF(cf), RA(rr_a), IA(ri_a), CR(cfr);
+  Mp aar, aai, acf, tmp;
+  mpfr_abs(aar.v, AR.v, MPFR_RNDN);
+  mpfr_abs(aai.v, AI.v, MPFR_RNDN);
+  mpfr_abs(acf.v, CF.v, MPFR_RNDN);
+
+  mpfr_set_zero(dev_re, 0);
+  acc(dev_re, aar.v, CR.v, tmp.v);
+  acc(dev_re, RA.v, acf.v, tmp.v);
+  acc(dev_re, RA.v, CR.v, tmp.v);
+
+  mpfr_set_zero(dev_im, 0);
+  acc(dev_im, aai.v, CR.v, tmp.v);
+  acc(dev_im, IA.v, acf.v, tmp.v);
+  acc(dev_im, IA.v, CR.v, tmp.v);
+
+  Mp prod, r;
+
+  mpfr_set(full_re, dev_re, MPFR_RNDN);
+  mpfr_mul(prod.v, AR.v, CF.v, MPFR_RNDN);
+  mpfr_abs(r.v, prod.v, MPFR_RNDN);
+  mpfr_mul_2si(r.v, r.v, 1 - static_cast<int>(wp), MPFR_RNDN);
+  mpfr_add(full_re, full_re, r.v, MPFR_RNDN);
+
+  mpfr_set(full_im, dev_im, MPFR_RNDN);
+  mpfr_mul(prod.v, AI.v, CF.v, MPFR_RNDN);
+  mpfr_abs(r.v, prod.v, MPFR_RNDN);
+  mpfr_mul_2si(r.v, r.v, 1 - static_cast<int>(wp), MPFR_RNDN);
+  mpfr_add(full_im, full_im, r.v, MPFR_RNDN);
+}
+
+// claimed >= dev (soundness) and claimed <= 4 * full (tightness).
+bool tight(double claimed, mpfr_srcptr dev, mpfr_srcptr full) {
+  if (mpfr_cmp_d(dev, claimed) > 0) return false;
+  Mp cap;
+  mpfr_mul_ui(cap.v, full, 4, MPFR_RNDN);
+  return mpfr_cmp_d(cap.v, claimed) >= 0;
 }
 
 }  // namespace
 
 int main() {
   std::fprintf(stdout, "SEED %llx\n",
-               static_cast<unsigned long long>(g_rng));
-  constexpr mpfr_prec_t P = 160;
+               static_cast<unsigned long long>(::zftest::current_seed()));
 
-  // ---- C3: exact integer spot checks -----------------------------------
+  // ---- C3: exact integer spot checks -------------------------------------
   {
-    // (1+0.125i)(2-0.25i) = 2.03125 + 0i exactly
-    CBall a = make_ball(P, 1.0, 0.125, 0.0, 0.0);
-    CBall b = make_ball(P, 2.0, -0.25, 0.0, 0.0);
-    a.mul(b, P);
+    constexpr mpfr_prec_t P = 160;
+    CBall a = make_ball(P, {1, 0}, {1, -3}, 0.0, 0.0);       // 1 + 0.125i
+    CBall b = make_ball(P, {2, 0}, {-1, -2}, 0.0, 0.0);      // 2 - 0.25i
+    a.mul(b, P);                                             // 2.03125 + 0i
     ZF_CHECK(std::fabs(mpfr_get_d(a.re, MPFR_RNDN) - 2.03125) < 1e-40);
     ZF_CHECK(std::fabs(mpfr_get_d(a.im, MPFR_RNDN)) < 1e-40);
+
+    CBall c = make_ball(P, {7, -1}, {-9, -2}, 0.0, 0.0);     // 3.5 - 2.25i
+    CBall d = make_ball(P, {3, -2}, {3, -1}, 0.0, 0.0);      // 0.75 + 1.5i
+    c.add(d);                                                // 4.25 - 0.75i
+    ZF_CHECK(std::fabs(mpfr_get_d(c.re, MPFR_RNDN) - 4.25) < 1e-40);
+    ZF_CHECK(std::fabs(mpfr_get_d(c.im, MPFR_RNDN) + 0.75) < 1e-40);
   }
+
+  // ---- C1 and C4: containment and tightness, all three operations ---------
+  int c1_fail_mul = 0, c1_fail_add = 0, c1_fail_mr = 0;
+  int c4_fail_mul = 0, c4_fail_add = 0, c4_fail_mr = 0;
+  int mixed_mul = 0, mixed_add = 0, mixed_mr = 0;
+
+  for (int trial = 0; trial < kTrials; ++trial) {
+    const mpfr_prec_t sp = pick_prec();
+    const mpfr_prec_t wp = pick_prec();
+    const Dy ar = pick_centre(), ai = pick_centre();
+    const Dy br = pick_centre(), bi = pick_centre();
+    const double rr_a = pick_radius(), ri_a = pick_radius();
+    const double rr_b = pick_radius(), ri_b = pick_radius();
+
+    Mp dev_re, dev_im, full_re, full_im;
+
+    // -- mul --------------------------------------------------------------
+    {
+      if (sp != wp) ++mixed_mul;
+      CBall a = make_ball(sp, ar, ai, rr_a, ri_a);
+      const CBall b = make_ball(sp, br, bi, rr_b, ri_b);
+      a.mul(b, wp);
+      corners_mul(ar, ai, rr_a, ri_a, br, bi, rr_b, ri_b,
+                  [&](mpfr_srcptr tre, mpfr_srcptr tim) {
+                    if (!within(tre, a.re, a.rr) || !within(tim, a.im, a.ri)) {
+                      if (c1_fail_mul == 0) {
+                        std::printf("C1FAIL mul sp=%d wp=%d\n",
+                                    static_cast<int>(sp), static_cast<int>(wp));
+                      }
+                      ++c1_fail_mul;
+                    }
+                  });
+      bound_mul(ar, ai, rr_a, ri_a, br, bi, rr_b, ri_b, wp,
+                dev_re.v, dev_im.v, full_re.v, full_im.v);
+      if (!tight(a.rr, dev_re.v, full_re.v) ||
+          !tight(a.ri, dev_im.v, full_im.v)) {
+        if (c4_fail_mul == 0) {
+          std::printf("C4FAIL mul sp=%d wp=%d rr=%.17g ri=%.17g\n",
+                      static_cast<int>(sp), static_cast<int>(wp), a.rr, a.ri);
+        }
+        ++c4_fail_mul;
+      }
+    }
+
+    // -- add ---------------------------------------------------------------
+    {
+      if (sp != wp) ++mixed_add;
+      CBall a = make_ball(sp, ar, ai, rr_a, ri_a);
+      const CBall b = make_ball(wp, br, bi, rr_b, ri_b);   // operand at wp
+      a.add(b);
+      corners_add(ar, ai, rr_a, ri_a, br, bi, rr_b, ri_b,
+                  [&](mpfr_srcptr tre, mpfr_srcptr tim) {
+                    if (!within(tre, a.re, a.rr) || !within(tim, a.im, a.ri)) {
+                      if (c1_fail_add == 0) {
+                        std::printf("C1FAIL add sp=%d wp=%d\n",
+                                    static_cast<int>(sp), static_cast<int>(wp));
+                      }
+                      ++c1_fail_add;
+                    }
+                  });
+      bound_add(ar, ai, rr_a, ri_a, br, bi, rr_b, ri_b, sp,
+                dev_re.v, dev_im.v, full_re.v, full_im.v);
+      if (!tight(a.rr, dev_re.v, full_re.v) ||
+          !tight(a.ri, dev_im.v, full_im.v)) {
+        if (c4_fail_add == 0) {
+          std::printf("C4FAIL add sp=%d wp=%d rr=%.17g ri=%.17g\n",
+                      static_cast<int>(sp), static_cast<int>(wp), a.rr, a.ri);
+        }
+        ++c4_fail_add;
+      }
+    }
+
+    // -- mul_real -----------------------------------------------------------
+    {
+      if (sp != wp) ++mixed_mr;
+      const Dy cf = br;
+      const double cfr = rr_b;
+      CBall a = make_ball(sp, ar, ai, rr_a, ri_a);
+      const Mp CF(cf);
+      a.mul_real(CF.v, cfr, wp);
+      corners_mul_real(ar, ai, rr_a, ri_a, cf, cfr,
+                       [&](mpfr_srcptr tre, mpfr_srcptr tim) {
+                         if (!within(tre, a.re, a.rr) ||
+                             !within(tim, a.im, a.ri)) {
+                           if (c1_fail_mr == 0) {
+                             std::printf("C1FAIL mul_real sp=%d wp=%d\n",
+                                         static_cast<int>(sp),
+                                         static_cast<int>(wp));
+                           }
+                           ++c1_fail_mr;
+                         }
+                       });
+      bound_mul_real(ar, ai, rr_a, ri_a, cf, cfr, wp,
+                     dev_re.v, dev_im.v, full_re.v, full_im.v);
+      if (!tight(a.rr, dev_re.v, full_re.v) ||
+          !tight(a.ri, dev_im.v, full_im.v)) {
+        if (c4_fail_mr == 0) {
+          std::printf("C4FAIL mul_real sp=%d wp=%d rr=%.17g ri=%.17g\n",
+                      static_cast<int>(sp), static_cast<int>(wp), a.rr, a.ri);
+        }
+        ++c4_fail_mr;
+      }
+      ZF_CHECK(mpfr_get_prec(a.re) == wp);
+      ZF_CHECK(mpfr_get_prec(a.im) == wp);
+    }
+  }
+
+  ZF_CHECK(c1_fail_mul == 0);
+  ZF_CHECK(c1_fail_add == 0);
+  ZF_CHECK(c1_fail_mr == 0);
+  ZF_CHECK(c4_fail_mul == 0);
+  ZF_CHECK(c4_fail_add == 0);
+  ZF_CHECK(c4_fail_mr == 0);
+  // Stored precision != wp must actually be exercised, or the layer is blind
+  // to a term charged at the wrong precision.
+  ZF_CHECK(mixed_mul > 0);
+  ZF_CHECK(mixed_add > 0);
+  ZF_CHECK(mixed_mr > 0);
+  std::printf("C1_TRIALS %d mixed mul=%d add=%d mul_real=%d\n",
+              kTrials, mixed_mul, mixed_add, mixed_mr);
+  std::printf("C1_FAILURES mul=%d add=%d mul_real=%d\n",
+              c1_fail_mul, c1_fail_add, c1_fail_mr);
+  std::printf("C4_FAILURES mul=%d add=%d mul_real=%d\n",
+              c4_fail_mul, c4_fail_add, c4_fail_mr);
+
+  // ---- C2: cut detection, all three operations ---------------------------
+  // Fixtures where the deviation part dominates the centre rounding, swept
+  // over the whole precision grid so stored != wp is covered exhaustively
+  // here rather than by sampling. A cut that no corner can see would mean the
+  // claimed radius has slack to give away, which is the rev 1 defect (B1).
   {
-    CBall a = make_ball(P, 3.5, -2.25, 0.0, 0.0);
-    CBall b = make_ball(P, 0.75, 1.5, 0.0, 0.0);
-    a.add(b);
-    ZF_CHECK(std::fabs(mpfr_get_d(a.re, MPFR_RNDN) - 4.25) < 1e-40);
-    ZF_CHECK(std::fabs(mpfr_get_d(a.im, MPFR_RNDN) + 0.75) < 1e-40);
-  }
+    const Dy ar{5, -1}, ai{-3, -1};                   // 2.5, -1.5
+    const Dy br{7, -2}, bi{9, -2};                    // 1.75, 2.25
+    const double rr_a = std::ldexp(1.0, -4), ri_a = std::ldexp(1.0, -5);
+    const double rr_b = std::ldexp(1.0, -3), ri_b = std::ldexp(1.0, -6);
 
-  // ---- C1: exact dyadic corner containment ------------------------------
-  // All balls use dyadic centres/radii (multiples of 1/64); corners are
-  // exact dyadics; the true corner products are computed EXACTLY as
-  // rationals. No floating-point comparison anywhere.
-  auto dy = [](int k) { return k / 64.0; };
-  int containment_failures = 0;
-  for (int are = -24; are <= 24 && containment_failures == 0; are += 3) {
-    for (int aim = -24; aim <= 24 && containment_failures == 0; aim += 5) {
-      for (int bre = -18; bre <= 18 && containment_failures == 0; bre += 4) {
-        for (int bim = -18; bim <= 18 && containment_failures == 0; bim += 7) {
-          const int rad_a_re = 1, rad_a_im = 1, rad_b_re = 1, rad_b_im = 1;
-          CBall a = make_ball(P, dy(are), dy(aim),
-                              dy(rad_a_re), dy(rad_a_im));
-          CBall b = make_ball(P, dy(bre), dy(bim),
-                              dy(rad_b_re), dy(rad_b_im));
-          CBall prod = a;              // deep copy (Rule-of-Three verified)
-          prod.mul(b, P);
+    int det_mul_9 = 0, det_mul_5 = 0, det_add_9 = 0, det_add_5 = 0;
+    int det_mr_9 = 0, det_mr_5 = 0, grid = 0;
 
-          // Four corners: exact dyadic coordinates, products via double
-          // (exact for these magnitudes: values < 2^12, products < 2^24,
-          // well within double's 53-bit mantissa).
-          const double ca[2] = {dy(are - rad_a_re), dy(are + rad_a_re)};
-          const double ci[2] = {dy(aim - rad_a_im), dy(aim + rad_a_im)};
-          const double cb[2] = {dy(bre - rad_b_re), dy(bre + rad_b_re)};
-          const double di[2] = {dy(bim - rad_b_im), dy(bim + rad_b_im)};
-          for (int s1 = 0; s1 < 2 && containment_failures == 0; ++s1)
-          for (int s2 = 0; s2 < 2 && containment_failures == 0; ++s2)
-          for (int s3 = 0; s3 < 2 && containment_failures == 0; ++s3)
-          for (int s4 = 0; s4 < 2 && containment_failures == 0; ++s4) {
-            const double tre_d = ca[s1]*cb[s2] - ci[s3]*di[s4];
-            const double tim_d = ca[s1]*di[s4] + ci[s3]*cb[s2];
-            if (!(std::fabs(mpfr_get_d(prod.re, MPFR_RNDN) - tre_d) <=
-                      prod.rr &&
-                  std::fabs(mpfr_get_d(prod.im, MPFR_RNDN) - tim_d) <=
-                      prod.ri)) {
-              std::printf("C1FAIL are=%d aim=%d bre=%d bim=%d s=%d%d%d%d\n",
-                          are, aim, bre, bim, s1, s2, s3, s4);
-              std::printf("  prod=(%.17g,%.17g) rr=%.17g ri=%.17g\n",
-                          mpfr_get_d(prod.re, MPFR_RNDN),
-                          mpfr_get_d(prod.im, MPFR_RNDN), prod.rr, prod.ri);
-              std::printf("  tre=%.17g tim=%.17g d_re=%.17g d_im=%.17g\n",
-                          tre_d, tim_d,
-                          std::fabs(mpfr_get_d(prod.re, MPFR_RNDN) - tre_d),
-                          std::fabs(mpfr_get_d(prod.im, MPFR_RNDN) - tim_d));
-              ++containment_failures;
+    for (int si = 0; si < 4; ++si) {
+      for (int wi = 0; wi < 4; ++wi) {
+        const mpfr_prec_t sp = kPrecPool[si];
+        const mpfr_prec_t wp = kPrecPool[wi];
+        ++grid;
+
+        auto any_outside = [](auto&& enumerate, const CBall& out, double cut) {
+          bool outside = false;
+          enumerate([&](mpfr_srcptr tre, mpfr_srcptr tim) {
+            if (outside) return;
+            if (!within(tre, out.re, out.rr * cut) ||
+                !within(tim, out.im, out.ri * cut)) {
+              outside = true;
             }
-          }
+          });
+          return outside;
+        };
+
+        {
+          CBall a = make_ball(sp, ar, ai, rr_a, ri_a);
+          const CBall b = make_ball(sp, br, bi, rr_b, ri_b);
+          a.mul(b, wp);
+          auto en = [&](auto&& f) {
+            corners_mul(ar, ai, rr_a, ri_a, br, bi, rr_b, ri_b, f);
+          };
+          ZF_CHECK(!any_outside(en, a, 1.0));
+          det_mul_9 += any_outside(en, a, 0.9) ? 1 : 0;
+          det_mul_5 += any_outside(en, a, 0.5) ? 1 : 0;
+        }
+        {
+          CBall a = make_ball(sp, ar, ai, rr_a, ri_a);
+          const CBall b = make_ball(wp, br, bi, rr_b, ri_b);
+          a.add(b);
+          auto en = [&](auto&& f) {
+            corners_add(ar, ai, rr_a, ri_a, br, bi, rr_b, ri_b, f);
+          };
+          ZF_CHECK(!any_outside(en, a, 1.0));
+          det_add_9 += any_outside(en, a, 0.9) ? 1 : 0;
+          det_add_5 += any_outside(en, a, 0.5) ? 1 : 0;
+        }
+        {
+          CBall a = make_ball(sp, ar, ai, rr_a, ri_a);
+          const Mp CF(br);
+          a.mul_real(CF.v, rr_b, wp);
+          auto en = [&](auto&& f) {
+            corners_mul_real(ar, ai, rr_a, ri_a, br, rr_b, f);
+          };
+          ZF_CHECK(!any_outside(en, a, 1.0));
+          det_mr_9 += any_outside(en, a, 0.9) ? 1 : 0;
+          det_mr_5 += any_outside(en, a, 0.5) ? 1 : 0;
         }
       }
     }
-  }
-  ZF_CHECK(containment_failures == 0);
 
-  // ---- C2: radius sabotage detection (exact corners) ---------------------
-  // This layer was vacuous through rev 1: the detection predicate read
-  //   detected = !any_inside || true;
-  // which is tautologically true, the variable was then discarded with a
-  // (void) cast, and the only surviving assertion was that a saved radius was
-  // positive. The header claimed a 0.5x cut MUST fail; measurement showed cuts
-  // of 0.9x and 0.5x passing green, with the real detection floor between
-  // 0.25x and 0.5x. Review findings C3 and B1: the floor was that low because
-  // the radius included the whole centre magnitude product and had enormous
-  // slack to give away.
-  //
-  // Detection now means what it says: with the output radii cut, at least one
-  // EXACT corner of the true product set must fall outside the claimed box.
-  {
-    // Centres and radii in units of 1/64, so every corner product is an exact
-    // dyadic rational and the reference arithmetic is integer.
-    const long long ar_u = 300, ai_u = -200, arad_u = 3, airad_u = 2;
-    const long long br_u = 500, bi_u = 700, brad_u = 4, birad_u = 1;
-
-    CBall a = make_ball(P, dy(ar_u), dy(ai_u), dy(arad_u), dy(airad_u));
-    CBall b = make_ball(P, dy(br_u), dy(bi_u), dy(brad_u), dy(birad_u));
-    CBall prod = a;
-    prod.mul(b, P);
-
-    // Exact corner containment against a given box. Corner products are
-    // integers in units of 1/4096; the centre is compared in full mpfr
-    // precision so the reference never passes through a double.
-    auto corner_outside = [&](double box_rr, double box_ri) {
-      mpfr_t cr, ci, tr, ti, d;
-      mpfr_init2(cr, 256); mpfr_init2(ci, 256);
-      mpfr_init2(tr, 256); mpfr_init2(ti, 256); mpfr_init2(d, 256);
-      mpfr_set(cr, prod.re, MPFR_RNDN);
-      mpfr_set(ci, prod.im, MPFR_RNDN);
-      bool outside = false;
-      for (int sa = -1; sa <= 1 && !outside; sa += 2)
-        for (int ta = -1; ta <= 1 && !outside; ta += 2)
-          for (int sb = -1; sb <= 1 && !outside; sb += 2)
-            for (int tb = -1; tb <= 1 && !outside; tb += 2) {
-              const long long AR = ar_u + sa * arad_u;
-              const long long AI = ai_u + ta * airad_u;
-              const long long BR = br_u + sb * brad_u;
-              const long long BI = bi_u + tb * birad_u;
-              // (AR + i AI)(BR + i BI) in units of 1/4096
-              mpfr_set_si(tr, AR * BR - AI * BI, MPFR_RNDN);
-              mpfr_div_ui(tr, tr, 4096, MPFR_RNDN);
-              mpfr_set_si(ti, AR * BI + AI * BR, MPFR_RNDN);
-              mpfr_div_ui(ti, ti, 4096, MPFR_RNDN);
-              mpfr_sub(d, tr, cr, MPFR_RNDN);
-              mpfr_abs(d, d, MPFR_RNDN);
-              if (mpfr_cmp_d(d, box_rr) > 0) { outside = true; break; }
-              mpfr_sub(d, ti, ci, MPFR_RNDN);
-              mpfr_abs(d, d, MPFR_RNDN);
-              if (mpfr_cmp_d(d, box_ri) > 0) { outside = true; break; }
-            }
-      mpfr_clear(cr); mpfr_clear(ci);
-      mpfr_clear(tr); mpfr_clear(ti); mpfr_clear(d);
-      return outside;
-    };
-
-    // The claimed radii must contain every exact corner.
-    ZF_CHECK(!corner_outside(prod.rr, prod.ri));
-
-    // A 0.9x cut must be detected. The rev 1 implementation survived this.
-    ZF_CHECK(corner_outside(prod.rr * 0.9, prod.ri * 0.9));
-    // And so must the coarser cuts the old header claimed to catch.
-    ZF_CHECK(corner_outside(prod.rr * 0.5, prod.ri * 0.5));
-    std::printf("C2_DETECT 0.9=%d 0.5=%d\n",
-                static_cast<int>(corner_outside(prod.rr * 0.9, prod.ri * 0.9)),
-                static_cast<int>(corner_outside(prod.rr * 0.5, prod.ri * 0.5)));
+    ZF_CHECK(det_mul_9 == grid);
+    ZF_CHECK(det_mul_5 == grid);
+    ZF_CHECK(det_add_9 == grid);
+    ZF_CHECK(det_add_5 == grid);
+    ZF_CHECK(det_mr_9 == grid);
+    ZF_CHECK(det_mr_5 == grid);
+    std::printf("C2_DETECT grid=%d mul 0.9=%d 0.5=%d | add 0.9=%d 0.5=%d | "
+                "mul_real 0.9=%d 0.5=%d\n",
+                grid, det_mul_9, det_mul_5, det_add_9, det_add_5,
+                det_mr_9, det_mr_5);
   }
 
-  // ---- C4: radius must be a DEVIATION bound, not a centre-inclusive one ---
-  // Review finding B1: mul previously set the radius to L1(a) * L1(b), which
-  // includes the centre product, so the radius always exceeded the output
-  // centre magnitude and every product ball contained zero. Sound, and
-  // useless: nothing downstream could ever be signed. Corner containment
-  // alone cannot see this, because an over-wide radius contains every corner.
-  //
-  // The exact deviation bound is computed here in integer units from the
-  // formula in MATHS.md D7b, independently of the implementation. The claimed
-  // radius must dominate it (soundness) and must not exceed a small multiple
-  // of it (so a centre-inclusive radius fails).
+  // ---- C4 signability: a product far from the origin must not contain zero -
+  // The direct statement of review finding B1: a centre-inclusive radius makes
+  // every product ball straddle zero, so nothing downstream can ever be signed.
   {
-    const long long ar_u = 300, ai_u = -200, arad_u = 3, airad_u = 2;
-    const long long br_u = 500, bi_u = 700, brad_u = 4, birad_u = 1;
-
-    CBall a = make_ball(P, dy(ar_u), dy(ai_u), dy(arad_u), dy(airad_u));
-    CBall b = make_ball(P, dy(br_u), dy(bi_u), dy(brad_u), dy(birad_u));
-    CBall prod = a;
-    prod.mul(b, P);
-
-    // All quantities in units of 1/64; products land in units of 1/4096.
-    auto absll = [](long long v) { return v < 0 ? -v : v; };
-    const long long dev_re_u =
-        absll(ar_u) * brad_u + absll(ai_u) * birad_u +
-        arad_u * absll(br_u) + airad_u * absll(bi_u) +
-        arad_u * brad_u + airad_u * birad_u;
-    const long long dev_im_u =
-        absll(ar_u) * birad_u + absll(ai_u) * brad_u +
-        arad_u * absll(bi_u) + airad_u * absll(br_u) +
-        arad_u * birad_u + airad_u * brad_u;
-    const double dev_re = static_cast<double>(dev_re_u) / 4096.0;
-    const double dev_im = static_cast<double>(dev_im_u) / 4096.0;
-
-    ZF_CHECK(prod.rr >= dev_re);          // soundness
-    ZF_CHECK(prod.ri >= dev_im);
-    // Tightness. The centre-rounding term at P = 160 bits on centres of order
-    // 1e5 is about 1e-43, so any honest deviation radius sits within a hair of
-    // the exact bound. The rev 1 centre-inclusive radius was about 140x it.
-    ZF_CHECK(prod.rr <= 4.0 * dev_re);
-    ZF_CHECK(prod.ri <= 4.0 * dev_im);
-
-    // The direct statement of the B1 defect: a product of two balls that are
-    // far from the origin relative to their radii must NOT contain zero.
-    const double cre = std::fabs(mpfr_get_d(prod.re, MPFR_RNDN));
-    const double cim = std::fabs(mpfr_get_d(prod.im, MPFR_RNDN));
-    ZF_CHECK(cre > prod.rr);
-    ZF_CHECK(cim > prod.ri);
-    std::printf("C4_TIGHTNESS rr/dev=%.4f ri/dev=%.4f signable=%d\n",
-                prod.rr / dev_re, prod.ri / dev_im,
-                static_cast<int>(cre > prod.rr && cim > prod.ri));
+    constexpr mpfr_prec_t P = 160;
+    const Dy ar{300, -6}, ai{-200, -6}, br{500, -6}, bi{700, -6};
+    const double rr_a = 3.0 / 64.0, ri_a = 2.0 / 64.0;
+    const double rr_b = 4.0 / 64.0, ri_b = 1.0 / 64.0;
+    CBall a = make_ball(P, ar, ai, rr_a, ri_a);
+    const CBall b = make_ball(P, br, bi, rr_b, ri_b);
+    a.mul(b, P);
+    const double cre = std::fabs(mpfr_get_d(a.re, MPFR_RNDN));
+    const double cim = std::fabs(mpfr_get_d(a.im, MPFR_RNDN));
+    ZF_CHECK(cre > a.rr);
+    ZF_CHECK(cim > a.ri);
+    std::printf("C4_SIGNABLE re=%d im=%d\n",
+                static_cast<int>(cre > a.rr), static_cast<int>(cim > a.ri));
   }
 
   // ---- C5: the centre-rounding term is taken at the precision the result is
@@ -274,9 +563,7 @@ int main() {
   // below wp the charge under-reports the error actually committed: a 53-bit
   // ball at centre 1 multiplied by a 200-bit coefficient carrying 100 bits of
   // new information returned a ball around 1.0 whose radius was ~2^-199, while
-  // the true product 1 + 2^-100 sat 2^-100 away. The products now go into
-  // temporaries at wp and are swapped in, so every CBall component is stored at
-  // wp after mul and mul_real.
+  // the true product 1 + 2^-100 sat 2^-100 away.
   {
     constexpr mpfr_prec_t kStored = 53;
     constexpr mpfr_prec_t kWp = 200;
@@ -287,18 +574,16 @@ int main() {
     a.rr = 0.0;
     a.ri = 0.0;
 
-    mpfr_t cf;
+    mpfr_t cf, eps;
     mpfr_init2(cf, kWp);
-    mpfr_set_ui(cf, 1, MPFR_RNDN);
-    mpfr_t eps;
     mpfr_init2(eps, kWp);
+    mpfr_set_ui(cf, 1, MPFR_RNDN);
     mpfr_set_ui(eps, 1, MPFR_RNDN);
     mpfr_div_2si(eps, eps, 100, MPFR_RNDN);   // 2^-100, exact at 200 bits
     mpfr_add(cf, cf, eps, MPFR_RNDN);         // 1 + 2^-100, exact at 200 bits
 
     a.mul_real(cf, 0.0, kWp);
 
-    // Exact truth: 1 * (1 + 2^-100) = 1 + 2^-100, held at 300 bits.
     mpfr_t truth, dev;
     mpfr_init2(truth, 300);
     mpfr_init2(dev, 300);
@@ -324,7 +609,6 @@ int main() {
     mpfr_clear(dev);
   }
 
-  std::fprintf(stdout, "CBALL_SUITE containment_failures %d failures %d\n",
-               containment_failures, ::zftest::failure_count());
+  std::fprintf(stdout, "CBALL_SUITE failures %d\n", ::zftest::failure_count());
   return ::zftest::failure_count() == 0 ? 0 : 1;
 }
