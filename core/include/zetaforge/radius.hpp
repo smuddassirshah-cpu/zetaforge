@@ -76,7 +76,7 @@ inline double round_up_positive(unsigned __int128 M, int E,
     q = M << (53 - bl);
     E -= 53 - bl;
   }
-  if (sticky) { /* sticky bump removed: ATTACKS.md row 1 */ }
+  if (sticky) ++q;
   if (q == ((unsigned __int128)1 << 53)) {
     q >>= 1;
     ++E;
