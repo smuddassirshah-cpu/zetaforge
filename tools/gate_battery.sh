@@ -75,6 +75,17 @@ echo
 
 require_clean "at battery start"
 
+# If the battery dies mid-row (a failed build, an interrupt, a bug in this
+# script) the mutation is still applied, and leaving a sabotaged tree behind is
+# the worst failure mode this tool has. The restore is therefore a trap rather
+# than a line at the end of the loop, armed only AFTER the clean check above:
+# armed before it, the trap would revert the very work-in-progress that made
+# the tree dirty.
+restore_tree() {
+  git checkout -- . 2>/dev/null || true
+}
+trap restore_tree EXIT
+
 pass=0
 fail=0
 rows=0
@@ -135,7 +146,8 @@ while IFS='|' read -r _lead num mutation patch configure command expected _rest;
         argv+=("$tok")
       fi
     done
-    env "${envs[@]}" "${argv[@]}" > /dev/null 2>&1
+    # bash 3.2 (the macOS default) errors on an empty array under set -u.
+    env ${envs[@]+"${envs[@]}"} ${argv[@]+"${argv[@]}"} > /dev/null 2>&1
     rc=$?
   fi
 
