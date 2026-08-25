@@ -64,8 +64,14 @@ products and one addition or subtraction), so each component carries
 
 Multiplication by a real ball (cf, cfr). Re(a * c) = ar cf + ar dc + p cf +
 p dc with |dc| <= cfr, giving |dev Re| <= |ar| cfr + rr_a |cf| + rr_a cfr,
-and likewise for Im. The implementation uses cfr(|ar| + |ai|) in place of the
-first term for both components, which dominates it. One mpfr multiplication
+and |dev Im| <= |ai| cfr + ri_a |cf| + ri_a cfr. Both are attained at a corner,
+so the bound is tight. Through rev 5 the implementation used the shared
+cfr(|ar| + |ai|) in place of the first term of each, which dominates the
+per-component term and therefore carries slack: at |ar| = 2.5, |ai| = 1.5 the
+claimed radius was 1.44x the attained deviation, enough for a 0.9x radius cut
+to survive exact corner containment. Since a bound with slack cannot be
+falsified by the cut test the gate doctrine relies on, mul_real now uses the
+per-component terms that mul has always used (R6-2). One mpfr multiplication
 per component contributes |result| * 2^(1-wp), and that product is formed in a
 fresh temporary at wp and swapped in, exactly as mul does, so 2^(1-wp) is the
 precision the result is genuinely rounded into.

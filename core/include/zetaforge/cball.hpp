@@ -237,13 +237,18 @@ struct CBall {
 
   // Multiply by a real ball (centre cf, radius cfr).
   //
-  //   |dev Re| <= |re| cfr + rr |cf| + rr cfr    (and likewise for Im)
+  //   |dev Re| <= |re| cfr + rr |cf| + rr cfr
+  //   |dev Im| <= |im| cfr + ri |cf| + ri cfr
   //
-  // The implementation uses the slightly coarser cfr(|re| + |im|) for both
-  // components, which dominates the per-component term and keeps one shared
-  // growth expression. The cfr * r_old term was absent before, and the centre
-  // multiplications were rounded MPFR_RNDU on signed values, biasing the
-  // centre with no radius to pay for it; both were fixed at rev 5.
+  // Both are attained at a corner, so the bound is tight. Through rev 5 the
+  // first term of each was the shared cfr(|re| + |im|), which dominates the
+  // per-component term and therefore carries slack: on a fixture with
+  // |re| = 2.5, |im| = 1.5 it claimed 1.44x the attained deviation, enough for
+  // a 0.9x radius cut to pass undetected by exact corner containment. mul has
+  // always used per-component terms; mul_real now mirrors it (R6-2). The
+  // cfr * r_old term was absent before, and the centre multiplications were
+  // rounded MPFR_RNDU on signed values, biasing the centre with no radius to
+  // pay for it; both were fixed at rev 5.
   //
   // The products go into temporaries at wp and are swapped in, mirroring mul,
   // so the centre-rounding term is charged at the precision the result is
@@ -258,7 +263,6 @@ struct CBall {
     const double reu = cb::abs_upper(re);
     const double imu = cb::abs_upper(im);
     const double rr_old = rr, ri_old = ri;
-    const double mag_sum = up_add(reu, imu);
 
     mpfr_t nre, nim;
     mpfr_init2(nre, wp);
@@ -266,12 +270,12 @@ struct CBall {
     mpfr_mul(nre, re, cf, MPFR_RNDN);
     mpfr_mul(nim, im, cf, MPFR_RNDN);
 
-    double gre = up_mul(cfr, mag_sum);
+    double gre = up_mul(cfr, reu);
     gre = up_add(gre, up_mul(rr_old, cfu));
     gre = up_add(gre, up_mul(rr_old, cfr));
     gre = up_add(gre, cb::round_term(wp, cb::abs_upper(nre)));
 
-    double gim = up_mul(cfr, mag_sum);
+    double gim = up_mul(cfr, imu);
     gim = up_add(gim, up_mul(ri_old, cfu));
     gim = up_add(gim, up_mul(ri_old, cfr));
     gim = up_add(gim, cb::round_term(wp, cb::abs_upper(nim)));

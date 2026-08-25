@@ -77,21 +77,6 @@ inline long double ld_up_mul(long double a, long double b) {
   return r > 0.0L ? r : LDBL_MIN;
 }
 
-double cast_down(long double x) {
-  if (!(x < INFINITY)) {
-    return kInf;
-  }
-  if (x <= 0.0) {
-    return 0.0;
-  }
-  const long double nudged = nextafterl(x, -INFINITY);
-  double d = static_cast<double>(nudged);
-  if (static_cast<long double>(d) > x) {
-    d = std::nextafter(d, -kInf);
-  }
-  return d;
-}
-
 long double mpfr_half_ulp_ld(mpfr_srcptr c) {
   if (mpfr_zero_p(c)) {
     return std::numeric_limits<double>::denorm_min();
