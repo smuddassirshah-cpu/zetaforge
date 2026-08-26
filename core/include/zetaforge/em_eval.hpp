@@ -17,7 +17,7 @@
 //               this evaluation alone; downstream sign logic MUST escalate.
 //               A zero-straddling ball can never be silently signed.
 //
-// Radius components carried explicitly (see MATHS.md D-EM):
+// Radius components carried explicitly (see MATHS.md D8):
 //   (i)    EM tail remainder (first omitted x SAFETY, monotone-checked)
 //   (ii)   mpfr rounding across the whole evaluation
 //   (iii)  theta radius propagated through e^{i theta}
@@ -30,6 +30,9 @@
 
 namespace zetaforge {
 
+// kEmTMax is UNDERIVED (review finding D6, unclosed half): it was asserted, not
+// computed from an N >= t cost model and the RS validity bound. Its derivation
+// is assigned to MATHS.md D8.
 constexpr double kEmTMax = 20000.0;
 constexpr double kEmSafety = 4.0;
 
