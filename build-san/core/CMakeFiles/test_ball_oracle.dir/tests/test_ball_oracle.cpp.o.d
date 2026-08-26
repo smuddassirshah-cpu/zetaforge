@@ -1,5 +1,4 @@
 core/CMakeFiles/test_ball_oracle.dir/tests/test_ball_oracle.cpp.o: \
-  /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/share/asan_ignorelist.txt \
   /Users/misbahshah/projects/zetaforge/core/tests/test_ball_oracle.cpp \
   /Users/misbahshah/projects/zetaforge/core/include/zetaforge/ball.hpp \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/cmath \

@@ -1,0 +1,10 @@
+ball 2 0.00397244
+ball_oracle 2 0.0320711
+ffix 2 0.174776
+ntt 2 0.00590444
+determinism_selfconsistency 1 0.251721
+radius_exact 2 0.143149
+radius_invariants 2 0.0421109
+theta 2 0.00415646
+cball 2 0.0119473
+---

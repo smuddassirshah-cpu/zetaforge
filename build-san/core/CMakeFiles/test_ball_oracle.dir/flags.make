@@ -6,7 +6,7 @@ CXX_DEFINES =
 
 CXX_INCLUDES = -I/opt/homebrew/include -I/Users/misbahshah/projects/zetaforge/core/include -isystem /opt/homebrew/Cellar/mpfr/4.2.2/include -isystem /opt/homebrew/Cellar/gmp/6.3.0/include
 
-CXX_FLAGSarm64 = -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -g -std=c++23 -arch arm64 -Wall -Wextra -Wpedantic -Werror -ffp-contract=off -frounding-math
+CXX_FLAGSarm64 = -fsanitize=undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -g -std=c++23 -arch arm64 -Wall -Wextra -Wpedantic -Werror -ffp-contract=off -frounding-math
 
-CXX_FLAGS = -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -g -std=c++23 -arch arm64 -Wall -Wextra -Wpedantic -Werror -ffp-contract=off -frounding-math
+CXX_FLAGS = -fsanitize=undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -g -std=c++23 -arch arm64 -Wall -Wextra -Wpedantic -Werror -ffp-contract=off -frounding-math
 

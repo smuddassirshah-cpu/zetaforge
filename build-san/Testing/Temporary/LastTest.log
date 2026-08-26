@@ -1,0 +1,159 @@
+Start testing: Aug 26 01:08 BST
+----------------------------------------------------------
+1/9 Testing: ball
+1/9 Test: ball
+Command: "/Users/misbahshah/projects/zetaforge/build-san/core/test_ball"
+Directory: /Users/misbahshah/projects/zetaforge/build-san/core
+"ball" start time: Aug 26 01:08 BST
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"ball" end time: Aug 26 01:08 BST
+"ball" time elapsed: 00:00:00
+----------------------------------------------------------
+
+2/9 Testing: ball_oracle
+2/9 Test: ball_oracle
+Command: "/Users/misbahshah/projects/zetaforge/build-san/core/test_ball_oracle"
+Directory: /Users/misbahshah/projects/zetaforge/build-san/core
+"ball_oracle" start time: Aug 26 01:08 BST
+Output:
+----------------------------------------------------------
+SEED 5eedc0de20260822
+PROPERTY_TRIALS 3000 oracle_checks 8169 failures 0
+<end of output>
+Test time =   0.06 sec
+----------------------------------------------------------
+Test Passed.
+"ball_oracle" end time: Aug 26 01:08 BST
+"ball_oracle" time elapsed: 00:00:00
+----------------------------------------------------------
+
+3/9 Testing: ffix
+3/9 Test: ffix
+Command: "/Users/misbahshah/projects/zetaforge/build-san/core/test_ffix"
+Directory: /Users/misbahshah/projects/zetaforge/build-san/core
+"ffix" start time: Aug 26 01:08 BST
+Output:
+----------------------------------------------------------
+SEED 5eedc0de20260822
+FFIX_TRIALS 5000 failures 0
+<end of output>
+Test time =   0.35 sec
+----------------------------------------------------------
+Test Passed.
+"ffix" end time: Aug 26 01:08 BST
+"ffix" time elapsed: 00:00:00
+----------------------------------------------------------
+
+4/9 Testing: ntt
+4/9 Test: ntt
+Command: "/Users/misbahshah/projects/zetaforge/build-san/core/test_ntt"
+Directory: /Users/misbahshah/projects/zetaforge/build-san/core
+"ntt" start time: Aug 26 01:08 BST
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"ntt" end time: Aug 26 01:08 BST
+"ntt" time elapsed: 00:00:00
+----------------------------------------------------------
+
+5/9 Testing: determinism_selfconsistency
+5/9 Test: determinism_selfconsistency
+Command: "/Users/misbahshah/projects/zetaforge/build-san/core/test_determinism"
+Directory: /Users/misbahshah/projects/zetaforge/build-san/core
+"determinism_selfconsistency" start time: Aug 26 01:08 BST
+Output:
+----------------------------------------------------------
+DETERMINISM_HASH ead1d19db740496f
+<end of output>
+Test time =   0.25 sec
+----------------------------------------------------------
+Test Passed.
+"determinism_selfconsistency" end time: Aug 26 01:08 BST
+"determinism_selfconsistency" time elapsed: 00:00:00
+----------------------------------------------------------
+
+6/9 Testing: radius_exact
+6/9 Test: radius_exact
+Command: "/Users/misbahshah/projects/zetaforge/build-san/core/test_radius"
+Directory: /Users/misbahshah/projects/zetaforge/build-san/core
+"radius_exact" start time: Aug 26 01:08 BST
+Output:
+----------------------------------------------------------
+SEED 5eedc0de20260822
+RADIUS_EXACT failures 0
+<end of output>
+Test time =   0.29 sec
+----------------------------------------------------------
+Test Passed.
+"radius_exact" end time: Aug 26 01:08 BST
+"radius_exact" time elapsed: 00:00:00
+----------------------------------------------------------
+
+7/9 Testing: radius_invariants
+7/9 Test: radius_invariants
+Command: "/Users/misbahshah/projects/zetaforge/build-san/core/test_radius_invariants"
+Directory: /Users/misbahshah/projects/zetaforge/build-san/core
+"radius_invariants" start time: Aug 26 01:08 BST
+Output:
+----------------------------------------------------------
+SEED 5eedc0de20260822
+INVARIANTS failures 0
+<end of output>
+Test time =   0.08 sec
+----------------------------------------------------------
+Test Passed.
+"radius_invariants" end time: Aug 26 01:08 BST
+"radius_invariants" time elapsed: 00:00:00
+----------------------------------------------------------
+
+8/9 Testing: theta
+8/9 Test: theta
+Command: "/Users/misbahshah/projects/zetaforge/build-san/core/test_theta"
+Directory: /Users/misbahshah/projects/zetaforge/build-san/core
+"theta" start time: Aug 26 01:08 BST
+Output:
+----------------------------------------------------------
+SEED 5eedc0de20260822
+L12_COMBOS 84
+L12_TIGHT_ZONE_MAX_ERR_OVER_BOUND 1.000000
+THETA_SUITE failures 0
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"theta" end time: Aug 26 01:08 BST
+"theta" time elapsed: 00:00:00
+----------------------------------------------------------
+
+9/9 Testing: cball
+9/9 Test: cball
+Command: "/Users/misbahshah/projects/zetaforge/build-san/core/test_cball"
+Directory: /Users/misbahshah/projects/zetaforge/build-san/core
+"cball" start time: Aug 26 01:08 BST
+Output:
+----------------------------------------------------------
+SEED 5eedc0de20260822
+C1_TRIALS 300 mixed mul=223 add=223 mul_real=223
+C1_FAILURES mul=0 add=0 mul_real=0
+C4_FAILURES mul=0 add=0 mul_real=0
+C2_DETECT grid=16 mul 0.9=16 0.5=16 | add 0.9=16 0.5=16 | mul_real 0.9=16 0.5=16
+C4_SIGNABLE re=1 im=1
+C5_PRECISION_RULE encloses=1 dev=0 rr=1.2446e-60 stored_after=200
+CBALL_SUITE failures 0
+<end of output>
+Test time =   0.02 sec
+----------------------------------------------------------
+Test Passed.
+"cball" end time: Aug 26 01:08 BST
+"cball" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Aug 26 01:08 BST

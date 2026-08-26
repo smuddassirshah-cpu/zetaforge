@@ -200,6 +200,57 @@ int main() {
     ZF_CHECK(threw);
   }
 
+  // ---- error composition must saturate, never wrap (rev 6) ---------------
+  // Found by the sanitiser leg: the composition ran in signed __int128 and
+  // UBSan caught a signed overflow on the ea * words term after 32 chained
+  // multiplications. Signed overflow is undefined and the observed behaviour
+  // was a wrap, so the tracked bound became SMALLER than the truth: the one
+  // thing this type promises never to do (stage 2 attack list, item 6).
+  // inflate_err compounded it by detecting its own overflow after the fact and
+  // falling back to the unscaled input, the same post-hoc pattern review
+  // finding B5 rejected in the value path.
+  {
+    Ffix v = Ffix::from_raw(static_cast<Ffix::raw_t>(0x123456789ABCDEFull), 1);
+    Ffix::raw_t prev = v.err();
+    bool monotone = true;
+    bool saturated = false;
+    for (int i = 0; i < 64 && !saturated; ++i) {
+      // Squaring drives the magnitude towards the range limit, so the run
+      // ends either at the value guard or at error saturation; both are
+      // honest outcomes, a shrinking bound is not.
+      try {
+        v = v.mul(v);
+      } catch (const std::overflow_error&) {
+        break;
+      }
+      if (v.err() < prev) {
+        monotone = false;
+        std::printf("FFIX_ERR_SHRANK step=%d\n", i);
+      }
+      prev = v.err();
+      saturated = v.err_saturated();
+    }
+    ZF_CHECK(monotone);
+    ZF_CHECK(prev >= 0);
+    std::printf("FFIX_ERR_MONOTONE %d saturated=%d\n",
+                static_cast<int>(monotone), static_cast<int>(saturated));
+
+    // A saturated bound stays saturated through further composition.
+    if (saturated) {
+      const Ffix w = v.add(Ffix::from_raw(1, 1));
+      ZF_CHECK(w.err_saturated());
+    }
+
+    // A negative error count is not a bound and is refused at the boundary.
+    bool refused = false;
+    try {
+      Ffix::from_raw(1, -1);
+    } catch (const std::invalid_argument&) {
+      refused = true;
+    }
+    ZF_CHECK(refused);
+  }
+
   std::fprintf(stdout, "FFIX_TRIALS %d failures %d\n", kTrials,
                ::zftest::failure_count());
   return ::zftest::failure_count() == 0 ? 0 : 1;
