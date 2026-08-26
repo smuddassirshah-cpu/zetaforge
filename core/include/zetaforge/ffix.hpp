@@ -12,6 +12,19 @@
 //
 // Dynamic range contract: |raw| < 2^120 enforced at construction and before
 // multiplication. Products beyond range throw rather than wrap silently.
+//
+// Error arithmetic is composed in UNSIGNED 128-bit words with SATURATING add
+// and multiply, never in the signed raw word (rev 6, found by the sanitiser
+// leg). The composition previously ran in signed __int128 and overflowed:
+// UndefinedBehaviorSanitizer caught a signed overflow on the ea * words term
+// after 32 chained multiplications in test_determinism. Signed overflow is
+// undefined, and the observed behaviour is a wrap, which makes the tracked
+// bound SMALLER than the truth. inflate_err also detected its own overflow
+// after the fact and fell back to the unscaled input, which is the same
+// post-hoc pattern review finding B5 rejected in the value path, in the error
+// path instead. An error at kErrMax means the value carries no usable bound
+// and the caller must escalate, exactly as an infinite Ball radius does; it is
+// never a small number standing in for a large one.
 
 #include <cstdint>
 #include <stdexcept>
@@ -48,6 +61,9 @@ class Ffix {
     if (!in_range(r)) {
       throw std::overflow_error("ffix range");
     }
+    if (err_units < 0) {
+      throw std::invalid_argument("ffix error count must be non-negative");
+    }
     f.raw_ = r;
     f.err_ = err_units;
     return f;
@@ -58,9 +74,13 @@ class Ffix {
   // Tracked error bound in raw units (1 unit = 2^-64). Conservative by design.
   raw_t err() const { return err_; }
 
+  // True when the bound has saturated: the value carries no usable error
+  // information and a caller relying on it must escalate rather than read err().
+  bool err_saturated() const { return static_cast<u128>(err_) >= kErrMax; }
+
   // Exact operations.
-  Ffix add(const Ffix& o) const { return make_checked(raw_ + o.raw_, err_ + o.err_); }
-  Ffix sub(const Ffix& o) const { return make_checked(raw_ - o.raw_, err_ + o.err_); }
+  Ffix add(const Ffix& o) const { return make_checked(raw_ + o.raw_, sum_err(o)); }
+  Ffix sub(const Ffix& o) const { return make_checked(raw_ - o.raw_, sum_err(o)); }
   Ffix negate() const { return make_checked(-raw_, err_); }
 
   // Multiplication with explicit truncation tracking.
@@ -120,19 +140,20 @@ class Ffix {
 
     // Error composition, deliberately inflated: operand magnitudes are
     // promoted to whole 2^32 words before multiplication so no partial ulp
-    // slips through untracked. All quantities are raw-unit counts.
-    const raw_t ea = err_ == 0 ? 0 : inflate_err(err_, am);
-    const raw_t eb = o.err_ == 0 ? 0 : inflate_err(o.err_, bm);
-    raw_t e = ea + eb;
+    // slips through untracked. All quantities are raw-unit counts, composed in
+    // u128 with saturating operations so the bound can only ever grow.
+    const u128 ea = err_ == 0 ? 0 : inflate_err(to_u(err_), am);
+    const u128 eb = o.err_ == 0 ? 0 : inflate_err(to_u(o.err_), bm);
+    u128 e = sat_add(ea, eb);
     // ea * |b| in absolute terms maps to ea * ceil_words(bm) raw units here:
     // both operands share the Q64.64 scale, so an error of ea raw units times
     // magnitude bm contributes roughly ea*bm >> 32 units after promotion.
-    e += ea == 0 ? 0 : (ea * (raw_t)((bm >> 32) + 1));
-    e += eb == 0 ? 0 : (eb * (raw_t)((am >> 32) + 1));
-    e += (lost != 0 ? 1 : 0);
-    e += 1;  // binary-op never-exact policy, mirrors Ball
+    e = sat_add(e, sat_mul(ea, (bm >> 32) + 1));
+    e = sat_add(e, sat_mul(eb, (am >> 32) + 1));
+    e = sat_add(e, lost != 0 ? 1 : 0);
+    e = sat_add(e, 1);  // binary-op never-exact policy, mirrors Ball
 
-    return make_checked(out_raw, e);
+    return make_checked(out_raw, static_cast<raw_t>(e));
   }
 
  private:
@@ -154,11 +175,37 @@ class Ffix {
     return v < 0 ? (u128)(-v) : (u128)v;
   }
 
+  // Largest error count representable in the signed raw word. Saturation
+  // ceiling for the whole error path; see err_saturated().
+  static constexpr u128 kErrMax = (((u128)1) << 127) - 1;
+
+  static u128 to_u(raw_t v) { return v < 0 ? 0 : (u128)v; }
+
+  static u128 sat_add(u128 a, u128 b) {
+    const u128 s = a + b;          // unsigned: wrap is defined, and detectable
+    return (s < a || s > kErrMax) ? kErrMax : s;
+  }
+
+  static u128 sat_mul(u128 a, u128 b) {
+    if (a == 0 || b == 0) {
+      return 0;
+    }
+    // Decided BEFORE the multiplication, not inspected after it.
+    if (a > kErrMax / b) {
+      return kErrMax;
+    }
+    return a * b;
+  }
+
+  raw_t sum_err(const Ffix& o) const {
+    return static_cast<raw_t>(sat_add(to_u(err_), to_u(o.err_)));
+  }
+
   // Promote an existing error count to whole-word granularity against a
   // magnitude: conservative, monotone, never smaller than the input.
-  static raw_t inflate_err(raw_t units, u128 magnitude) {
-    const raw_t words = (raw_t)((magnitude >> 32) + 1);
-    const raw_t scaled = units * (words + 1);
+  static u128 inflate_err(u128 units, u128 magnitude) {
+    const u128 words = (magnitude >> 32) + 1;
+    const u128 scaled = sat_mul(units, words + 1);
     return scaled > units ? scaled : units;
   }
 

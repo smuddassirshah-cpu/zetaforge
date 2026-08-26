@@ -1,5 +1,4 @@
 core/CMakeFiles/test_radius.dir/tests/test_radius.cpp.o: \
-  /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/share/asan_ignorelist.txt \
   /Users/misbahshah/projects/zetaforge/core/tests/test_radius.cpp \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/cmath \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__config \

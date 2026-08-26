@@ -1,5 +1,4 @@
 core/CMakeFiles/zetaforge_core.dir/src/em_eval.cpp.o: \
-  /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/share/asan_ignorelist.txt \
   /Users/misbahshah/projects/zetaforge/core/src/em_eval.cpp \
   /Users/misbahshah/projects/zetaforge/core/include/zetaforge/em_eval.hpp \
   /opt/homebrew/Cellar/mpfr/4.2.2/include/mpfr.h \
