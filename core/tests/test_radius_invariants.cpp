@@ -28,7 +28,6 @@ using zetaforge::up_mul;
 
 namespace {
 
-constexpr double kInf = std::numeric_limits<double>::infinity();
 inline double dm() { return std::numeric_limits<double>::denorm_min(); }
 
 double bits_to_double(uint64_t bits) {

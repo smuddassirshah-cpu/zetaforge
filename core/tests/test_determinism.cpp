@@ -70,7 +70,7 @@ int main() {
   for (int i = 0; i < 32; ++i) {
     fx = fx.mul(fy).add(fy).sub(Ffix::from_int(i + 1));
     const uint64_t lo = static_cast<uint64_t>(fx.raw());
-    const uint64_t hi = static_cast<uint64_t>(static_cast<unsigned __int128>(fx.raw()) >> 64);
+    const uint64_t hi = static_cast<uint64_t>(static_cast<zetaforge::u128>(fx.raw()) >> 64);
     mix_bytes(&lo, sizeof(lo));
     mix_bytes(&hi, sizeof(hi));
   }

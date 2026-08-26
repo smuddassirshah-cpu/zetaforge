@@ -1,0 +1,8 @@
+{
+	"InstallScripts" : 
+	[
+		"/Users/misbahshah/projects/zetaforge/build-san/cmake_install.cmake",
+		"/Users/misbahshah/projects/zetaforge/build-san/core/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

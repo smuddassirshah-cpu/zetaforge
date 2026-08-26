@@ -24,9 +24,17 @@ constexpr int kEmCorrectionOrder = 8;
 static_assert(kEmCorrectionOrder >= 2 && kEmCorrectionOrder <= kBernMaxK,
               "EM correction order must index the Bernoulli table");
 
+// The table has no live consumer while zeta_em is a throwing stub
+// (docs/gate/ATTACKS.md row 3, an accepted blind spot). Referenced here so it
+// is not dead code under -Werror; the live oracle check against FLINT's
+// bernoulli table lands with the EM path and closes that row. Deliberately
+// pins only the head, so corrupting the entry row 3 mutates still compiles and
+// the row still measures what it claims to.
+static_assert(kBNum[0] == 1 && kBDen[0] == 6, "Bernoulli table head");
+
 }  // namespace
 
-ZResult zeta_em(double t, mpfr_prec_t prec) {
+ZResult zeta_em(double t, [[maybe_unused]] mpfr_prec_t prec) {
   if (!std::isfinite(t) || t <= 0.0) {
     throw std::invalid_argument("zeta_em requires finite positive t");
   }

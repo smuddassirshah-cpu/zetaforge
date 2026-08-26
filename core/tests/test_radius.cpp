@@ -79,8 +79,8 @@ int main() {
       if (a == 0.0 || b == 0.0 || !std::isfinite(a) || !std::isfinite(b)) continue;
       const Decomposed da = decomp(a);
       const Decomposed db = decomp(b);
-      const unsigned __int128 p =
-          static_cast<unsigned __int128>(da.mant) * db.mant;
+      const zetaforge::u128 p =
+          static_cast<zetaforge::u128>(da.mant) * db.mant;
       const int pe = da.exp + db.exp;
       const int top_exp = pe + bit_length(p) - 1;
       if (top_exp < -1021 || top_exp > 971) continue;
