@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <limits>
 #include <stdexcept>
+#include <vector>
 
 #include <gmp.h>
 
@@ -263,28 +264,53 @@ int main() {
     mpz_ui_pow_ui(cap, 2, 127);
     mpz_sub_ui(cap, cap, 1);                       // kErrMax = 2^127 - 1
 
-    struct Case { int ra_bits, rb_bits, ea_bits, eb_bits; };
-    const Case cases[] = {
-        {8, 8, 0, 0},    {40, 40, 4, 4},   {60, 60, 20, 20},
-        {60, 100, 125, 3}, {100, 60, 3, 125}, {100, 100, 100, 100},
-        {119, 8, 126, 126}, {60, 100, 126, 126}, {32, 32, 64, 64},
+    // Three families. The structured cases span the ordinary range; the
+    // CONSTRUCTED family is boundary hunting (stage 2 attack list, item 2):
+    // an unsound product is only invisible when its wrap lands large, so these
+    // pick magnitudes making ea * (words + 1) an exact multiple of 2^128, where
+    // a wrap lands on ZERO. Random generators do not reach that unaided, and a
+    // first draft of this layer missed the defect for exactly that reason. The
+    // random family then sweeps for anything the other two did not imagine.
+    struct Case { Ffix::raw_t ra, rb, ea, eb; };
+    auto pow2 = [](int b) { return static_cast<Ffix::raw_t>(1) << b; };
+    std::vector<Case> cases = {
+        {pow2(8), pow2(8), 0, 0},
+        {pow2(40), pow2(40), pow2(4), pow2(4)},
+        {pow2(60), pow2(60), pow2(20), pow2(20)},
+        {pow2(60), pow2(100), pow2(125), pow2(3)},
+        {pow2(100), pow2(60), pow2(3), pow2(125)},
+        {pow2(100), pow2(100), pow2(100), pow2(100)},
+        {pow2(119), pow2(8), pow2(126), pow2(126)},
+        {pow2(60), pow2(100), pow2(126), pow2(126)},
+        {pow2(32), pow2(32), pow2(64), pow2(64)},
     };
-    int equality_failures = 0, saturating = 0;
+    for (int j : {96, 100, 104, 112}) {
+      const int k = 128 - j;                       // want (am>>32) + 2 == 2^k
+      const Ffix::raw_t am = (pow2(k) - 2) << 32;
+      cases.push_back({am, pow2(8), pow2(j), 0});
+      cases.push_back({pow2(8), am, 0, pow2(j)});
+    }
+    for (int i = 0; i < 4000; ++i) {
+      auto draw = [&](int maxbits) {
+        const uint64_t r = rng.next();
+        const int b = static_cast<int>(r % static_cast<uint64_t>(maxbits));
+        Ffix::raw_t v = pow2(b);
+        v += static_cast<Ffix::raw_t>(rng.next() & ((UINT64_C(1) << 40) - 1));
+        return v;
+      };
+      cases.push_back({draw(110), draw(110), draw(126), draw(126)});
+    }
+
+    int equality_failures = 0, saturating = 0, evaluated = 0;
     for (const Case& c : cases) {
-      const Ffix::raw_t ra = static_cast<Ffix::raw_t>(1) << c.ra_bits;
-      const Ffix::raw_t rb = static_cast<Ffix::raw_t>(1) << c.rb_bits;
-      const Ffix::raw_t ea = c.ea_bits == 0
-                                 ? 0
-                                 : (static_cast<Ffix::raw_t>(1) << c.ea_bits);
-      const Ffix::raw_t eb = c.eb_bits == 0
-                                 ? 0
-                                 : (static_cast<Ffix::raw_t>(1) << c.eb_bits);
+      const Ffix::raw_t ra = c.ra, rb = c.rb, ea = c.ea, eb = c.eb;
       Ffix out;
       try {
         out = Ffix::from_raw(ra, ea).mul(Ffix::from_raw(rb, eb));
       } catch (const std::overflow_error&) {
         continue;   // value out of range: not this layer's subject
       }
+      ++evaluated;
       exact_mul_err(ra, ea, rb, eb, expect);
       if (mpz_cmp(expect, cap) > 0) {
         mpz_set(expect, cap);          // policy: saturate at kErrMax
@@ -297,15 +323,17 @@ int main() {
                                        static_cast<uint64_t>(got)));
       if (mpz_cmp(claimed, expect) != 0) {
         ++equality_failures;
-        std::printf("FFIX_ERR_POLICY ra=2^%d rb=2^%d ea=2^%d eb=2^%d\n",
-                    c.ra_bits, c.rb_bits, c.ea_bits, c.eb_bits);
-        std::printf("  claimed=%s\n", mpz_get_str(nullptr, 10, claimed));
-        std::printf("  expect =%s\n", mpz_get_str(nullptr, 10, expect));
+        if (equality_failures <= 3) {
+          std::printf("FFIX_ERR_POLICY claimed=%s\n",
+                      mpz_get_str(nullptr, 10, claimed));
+          std::printf("                 expect =%s\n",
+                      mpz_get_str(nullptr, 10, expect));
+        }
       }
     }
     ZF_CHECK(equality_failures == 0);
-    std::printf("FFIX_ERR_POLICY_EQUALITY failures=%d saturating_cases=%d\n",
-                equality_failures, saturating);
+    std::printf("FFIX_ERR_POLICY_EQUALITY cases=%d failures=%d saturating=%d\n",
+                evaluated, equality_failures, saturating);
     mpz_clears(expect, cap, claimed, nullptr);
 
     // A negative error count is not a bound and is refused at the boundary.
