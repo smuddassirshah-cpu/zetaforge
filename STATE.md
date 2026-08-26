@@ -242,6 +242,9 @@ Known gaps NOT closed this revision (carried forward):
 - Seed reporting is incomplete: test_ball and test_ntt print no SEED line, and
   test_cball uses its own generator rather than the check.hpp seed stream, so
   the stage 2 inherited obligation is only partly met.
+  CLOSED at rev 6. test_cball moved onto the check.hpp seed stream (R6-2), and
+  test_ball, test_ntt and test_determinism now print SEED. Every suite in the
+  tree prints one, so the stage 2 inherited obligation is met in full.
 - MATHS.md O1 (Gabcke per-term constants) remains open and now has an explicit
   consequence recorded: the theta safety factor is load-bearing, not headroom.
 

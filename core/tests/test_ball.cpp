@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <cmath>
 #include <limits>
 #include <stdexcept>
@@ -9,6 +10,12 @@
 using zetaforge::Ball;
 
 int main() {
+  // This suite draws nothing from the seed stream, but every ZF_CHECK failure
+  // line carries the active seed, so printing it keeps the record uniform
+  // across the suite and makes any run self-identifying (stage 2 inherited
+  // obligation, the half rev 5 carried forward).
+  std::fprintf(stdout, "SEED %llx\n",
+               static_cast<unsigned long long>(::zftest::current_seed()));
   // Exact scalars carry zero radius; binary ops never claim exactness.
   Ball half = Ball::from_double(0.5, 128);
   ZF_CHECK(half.radius() == 0.0);

@@ -50,6 +50,10 @@ void mix_mpfr(mpfr_srcptr v) {
 }  // namespace
 
 int main() {
+  // Deterministic by construction; the line records the harness seed that any
+  // failure would report, so every suite in the tree prints one.
+  std::fprintf(stdout, "SEED %llx\n",
+               static_cast<unsigned long long>(::zftest::current_seed()));
   using zetaforge::Ball;
   using zetaforge::Ffix;
 
