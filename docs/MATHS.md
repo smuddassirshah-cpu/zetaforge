@@ -19,7 +19,7 @@ claim whose status here is "pending" past the stage that needs it.
 | D6 | Isolation cost factor model (evaluations per zero); early low-height estimate measured at stage 5 over [0,10^6], campaign-height figure confirmed at stage 9(a-i); both compared against the 2x reserve | stage 5 (estimate), stage 9(a-i) (confirmed) | pending |
 | D7 | Ball operation error bounds: centre rounding enters via half_ulp_bound of the rounded result; radius terms outward-rounded by integer-exact primitives (radius.hpp); no binary op exact. Soundness enforced structurally: bit-exact integer reference suite (test_radius), not statistical | stage 2 | done-by-construction + test_radius |
 | D7b | Complex ball (CBall) operation bounds: componentwise deviation bounds for add, mul and mul_real, each carrying an explicit centre-rounding term charged at the precision the result is actually rounded into (mul and mul_real round into temporaries at wp and store at wp; add rounds in place at the stored precision), all radius arithmetic performed with the outward integer-exact primitives of radius.hpp. Derivation below. Soundness AND tightness are both tested: corner containment cannot see an over-wide radius, so test_cball layer C4 additionally asserts the claimed radius lies within a small multiple of the exact deviation bound; layer C5 pins the precision rule | stage 4 | done, tests core/tests/test_cball.cpp layers C1-C5 |
-| D8 | Sub-t0 Z(t): below t0=200, compute zeta(1/2+it) directly by Euler-Maclaurin (no theta needed); Z(t)=Re[e^{i theta}]zeta collapses to |zeta| when theta is not separated; instead return the complex ball and let callers extract Re via e^{i theta} above t0 or use |zeta| as a lower bound for enclosure purposes below t0. EM remainder: first omitted Bernoulli term x SAFETY, monotone-checked at runtime | stage 4 | pending |
+| D8 | Sub-t0 Z(t), rewritten at rev 6; REPLACES the plan that returned a complex ball and offered |zeta| as a lower bound, which cannot certify a sign because |Z| = |zeta| identically (review finding A1). Certified theta for every finite t > 0 by the Gamma recurrence into the validated Stirling sector with the Stieltjes remainder as a radius term; certified zeta(1/2+it) by Euler-Maclaurin with BACKLUND's remainder (Edwards section 6.4) rather than first-omitted-term times a safety factor, which is not a theorem on the critical line and under-reports by up to 81x at cost-minimal N (measured, review finding A2); then Z = u cos(theta) - v sin(theta) in ball arithmetic, with u sin(theta) + v cos(theta) required to contain zero as a test assertion. Derivation below | stage 4 | done, tests core/tests/test_theta.cpp (domain, L2b, L4, L5) and core/tests/test_zeta.cpp (L-A to L-D) |
 
 ## D7b derivation: complex ball operation bounds
 
@@ -101,6 +101,204 @@ sign of the value, so the conversion always rounds away from zero; taking the
 absolute value AFTER a round-up conversion rounds negative values toward zero
 and under-estimates every term the magnitude multiplies. Results pass through
 inflate, so no complex operation claims exactness.
+
+## D8 derivation: certified theta below t0, and Z(t) by Euler-Maclaurin
+
+### D8.1 What replaced what
+
+The rev-5 plan read: "below t0 compute zeta(1/2+it) directly by Euler-Maclaurin
+(no theta needed); Z(t) = Re[e^{i theta}] zeta collapses to |zeta| when theta
+is not separated; instead return the complex ball and use |zeta| as a lower
+bound below t0". That cannot deliver the stage 4 definition of done. Since
+Z(t) = e^{i theta(t)} zeta(1/2 + it) and |e^{i theta}| = 1, |Z| = |zeta|
+identically, so a magnitude carries NO sign information and the gamma_1
+bracket (Z negative below the first zero, positive above it) is unreachable
+from it. The expression "Re[e^{i theta}] zeta" is itself wrong: it parses as
+cos(theta) times a complex number, which is complex.
+
+What is actually needed below t0 is a certified enclosure of theta(t) itself.
+
+### D8.2 The function
+
+    theta(t) = Im log Gamma(1/4 + i t/2) - (t/2) ln pi,       t > 0
+
+where log Gamma is the branch that is real on the positive real axis and
+analytic on Re z > 0. Write z = 1/4 + i t/2, which has Re z = 1/4 > 0 for
+every t.
+
+### D8.3 Recurrence into the Stirling sector, and why the branch is fixed
+
+From Gamma(z+1) = z Gamma(z),
+
+    log Gamma(z) = log Gamma(z + m) - sum_{j=0}^{m-1} Log(z + j)
+
+with Log the PRINCIPAL logarithm and no additive 2 pi i k.
+
+Proof, one line as promised: every z + j has Re(z + j) = 1/4 + j > 0, so the
+whole recurrence lives in the right half plane; F(z) := log Gamma(z+1) -
+log Gamma(z) - Log(z) is analytic there (the half plane is simply connected,
+Log is analytic on it, and log Gamma is analytic and zero-free of branch
+points on it), and F vanishes identically on the positive real axis where all
+three terms are real and the identity is the elementary one; by the identity
+theorem F == 0 on the half plane. Iterating gives the displayed formula.
+Consequently Im log Gamma(z) = Im log Gamma(w) - sum_j arg(z + j) with
+arg(z + j) = atan2(t/2, 1/4 + j) in (-pi/2, pi/2), which is what the
+implementation evaluates.
+
+A branch slip on any factor moves theta by a nonzero multiple of 2 pi. No
+certified radius here is anywhere near 2 pi, so the golden corpus layer (L2b)
+detects it outright; that is the branch's test, and it is why no separate
+dual-shift layer is carried.
+
+### D8.4 Stirling with the Stieltjes remainder
+
+For w = z + m, with A_n(w) := B_{2n} / (2n(2n-1) w^{2n-1}),
+
+    log Gamma(w) = (w - 1/2) Log w - w + (1/2) ln(2 pi)
+                   + sum_{n=1}^{N} A_n(w) + r_N(w)
+
+    |r_N(w)| <= |A_{N+1}(w)| sec^{2N+2}(arg(w) / 2)
+
+the Stieltjes sectoral bound (Olver, Asymptotics and Special Functions, 1974,
+ch. 8; Spira, Math. Comp. 25 (1971) 317-322 gives an independent right
+half-plane bound of the same shape and corroborates the constant). Only the
+imaginary part is wanted, and |Im r_N| <= |r_N|, so the same bound serves.
+
+The constant is only valid inside a sector. The implementation keeps
+|arg w| <= pi/4, where sec(arg w / 2) <= sec(pi/8) = 1.0823922002923940, and
+CHECKS that it did: the guard is an explicit throw, not an assumption, because
+outside the sector the bound is not a bound. Verified numerically over
+|w| in {3, 5, 8, 13, 21, 40} x arg w in [0, pi/4] x N in {1, 2, 4, 8, 16}:
+worst attained/bound ratio 0.999822, and the bound holds at every point.
+
+### D8.5 The shift rule
+
+    m = max( ceil(t/2),  ceil(0.14 q) + 2 ),      q = prec + 16
+
+Two independent requirements, both load-bearing:
+
+(a) Sector. Re w = 1/4 + m and Im w = t/2, so m >= t/2 gives Re w > Im w and
+    hence |arg w| < pi/4. This is what docs/gate/ATTACKS.md row 21 attacks.
+
+(b) Decay. The Stirling remainder bottoms out near exp(-2 pi |w|) at its
+    optimal truncation N ~ pi |w|. The sectoral constant costs back
+    exp(2 pi |w| ln sec(pi/8)) = exp(0.4974 |w|), leaving a net exp(-5.7853
+    |w|). Reaching 2^-q therefore needs |w| >= q ln 2 / 5.7853 = 0.1198 q.
+    The rule takes 0.14 q plus two spare steps, which covers the polynomial
+    factor the exponential estimate drops.
+
+N is not fixed: terms are added while the certified bound of D8.4 exceeds
+2^-q, stopping also if the bound starts to rise (the divergence turnover of an
+asymptotic series). The bound at the stopping N is the truncation radius term.
+
+### D8.6 Bernoulli numbers
+
+B_{2n} is exact, from the recurrence sum_{k<=m} C(m+1,k) B_k = 0 evaluated in
+GMP rationals (core/src/bernoulli.cpp), not from a transcribed decimal table:
+these terms are combined at several hundred bits and a truncated constant
+would put an unaccounted error inside a certified radius. The recurrence is
+checked against the ten values transcribed in em_eval.cpp on first use, and
+against FLINT's bernoulli table in test_theta L5 (11 indices to B_256). A
+transcription error and a recurrence error would have to agree to survive
+both. ATTACKS.md rows 3 and 22 attack the two sides.
+
+### D8.7 The certified radius, term by term
+
+Every term is outward-rounded with the primitives of D7.
+
+  (i)  Truncation: |A_{N+1}(w)| sec^{2N+2}(arg w / 2) at the stopping N,
+       assembled by repeated up_mul so no step rounds inward.
+  (ii) mpfr rounding: each operation at working precision P = prec + 64
+       commits at most |result| 2^-P. The count is explicit rather than
+       estimated (12 fixed operations, 6 per series term, 3 per recurrence
+       step) and the magnitude cap is closed form:
+           C = 2(m+1)(pi/2) + (t/2)(ln(Re w + Im w) + 1.2) + 1
+       covering the arg sum, the (w-1/2)Log w assembly, the (t/2) ln pi term
+       and the series, whose terms never exceed |c_1|/|w| < 1/12. The term is
+       C x ops x 2^(1-P).
+  (iii) Representation: none. t is a double and 1/4 and m are exact, so every
+       input is binary-exact at P.
+
+There is no safety factor anywhere in this derivation. Compare D1, where the
+factor 4 is load-bearing and open as O1.
+
+### D8.8 Euler-Maclaurin for zeta on the critical line, with Backlund
+
+    zeta(s) = sum_{n=1}^{N-1} n^-s + N^-s/2 + N^(1-s)/(s-1)
+              + sum_{k=1}^{M} T_k(s, N) + E_M,
+    T_k = (B_{2k}/(2k)!) prod_{j=0}^{2k-2}(s+j) N^(-s-2k+1)
+
+Backlund's remainder bound (Edwards, Riemann's Zeta Function, section 6.4):
+
+    |E_M| <= |T_{M+1}| . |s + 2M + 1| / (sigma + 2M + 1),      sigma = Re s
+
+Both factors are computed as balls. This REPLACES the rev-5 policy of first
+omitted term times kEmSafety = 4 with a runtime monotone check. That policy is
+not a theorem on the critical line: the enveloping property justifying
+first-omitted-term bounds holds for real s > 0, not for s = 1/2 + it. Measured
+here at cost-minimal N ~ t/2pi and M = 8, true remainder over first omitted
+term: 0.55 at t = 14.13, 1.45 at t = 50, 4.72 at t = 200, 13.98 at t = 1000,
+38.5 at t = 5000, 81.3 at t = 20000. The factor-4 policy therefore
+under-reports by up to 20x on the band this path owns and by 81x at the old
+kEmTMax. Against Backlund the worst measured ratio over the same sweep is
+0.7675, i.e. the bound holds with room.
+
+The monotone check is demoted to a sanity assertion that can neither widen nor
+narrow a radius: it detects only that the asymptotic series has not passed its
+divergence turnover, which bounds nothing.
+
+N and M are pinned from the target radius, not from a rule of thumb: N starts
+at max(8, ceil(t) + 1) and doubles, and for each N, M rises while the Backlund
+bound exceeds the target, stopping at the turnover. Work at prec = 256 is
+N + M = 97 at t = 0.5, 103 at gamma_1, 252 at t = 200 and 452 at t = 400.
+
+### D8.9 Assembly of Z, and the imaginary-part invariant
+
+With zeta(1/2 + it) = u + iv as a complex ball and theta as a real ball,
+
+    Z(t) = u cos(theta) - v sin(theta)          (real, this is ZResult)
+    0    = u sin(theta) + v cos(theta)          (identically, since Z is real)
+
+The second is not a comment: Z(t) is real for real t, so the imaginary part of
+e^{i theta} zeta must be a ball CONTAINING ZERO, and test_zeta asserts it
+(layer L-C). It is a free check on theta's branch, on the sign convention of
+the assembly and on the zeta ball at once, and it costs one extra ball
+expression. ATTACKS.md rows 18 and 19 attack the assembly and the assertion.
+
+### D8.10 kEmTMax
+
+kEmTMax = 400, derived, replacing the asserted 20000 (review finding D6).
+
+The EM path's obligation is the range the RS path cannot serve: 0 < t <= t0
+with t0 = 200 pinned in D2. Above t0 it is not needed, only useful, as an
+independent second opinion. Its cost is linear in t: N >= t Dirichlet terms
+plus m = ceil(t/2) recurrence steps for theta, so about 4t transcendental
+operations at working precision, against the RS path's ~sqrt(t/2pi) main-sum
+terms. The ratio is 4 sqrt(2 pi t), already about 140x at t0 and growing.
+
+So the ceiling buys overlap evidence at linear cost, and overlap evidence does
+not improve with height: the two derivations are either independent or they
+are not, and they do not become more independent at t = 20000 than at t = 400.
+kEmTMax = 2 t0 gives a full octave [200, 400] of overlap, at most 1600
+transcendental operations at the ceiling, and nothing beyond it that any
+definition-of-done item asks for. 20000 was 50x the cost at the ceiling for no
+stated purpose, and was written into the code without a derivation anywhere.
+
+### D8.11 Numerical evidence
+
+- Stieltjes bound: worst attained/bound 0.999822 over the validated sector.
+- Sub-t0 theta against the mpmath corpus, tolerance equal to the certified
+  radius with zero additive slack: SUBT0_COMBOS 112 (28 heights, from 1e-6 to
+  199.999 plus the overlap band, x 4 precisions), SUBT0_MAX_ERR_OVER_RADIUS
+  0.852895.
+- Overlap: the series path (D1) and the log Gamma path (D8) share no
+  coefficient, no truncation argument and no remainder bound. On
+  [200, 400] x {128, 256} their enclosures must intersect:
+  OVERLAP_MAX_DIFF_OVER_COMBINED 0.250000 over 12 combinations.
+- Bernoulli: 11 indices to B_256 against FLINT, 0 mismatches.
+- Backlund: worst true-error over bound 0.7675 across t in
+  {1, 14.13, 50, 200, 300, 1000, 5000, 20000} x {N ~ t/2pi, N >= t}.
+
 
 ## References of record
 

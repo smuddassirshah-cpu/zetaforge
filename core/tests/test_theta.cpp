@@ -1,31 +1,44 @@
-// Theta certification suite. Covers MATHS.md D1/D2.
+// Theta certification suite. Covers MATHS.md D1, D2 and D8.
 //
-// TWO verification layers ship here. An earlier revision of this header and of
-// DECISIONS.md described a third, "L1 ENCLOSURE" against FLINT acb_lgamma
-// intervals over 84 combinations. That layer has never existed in any
-// committed tree; the claim is struck (readiness review finding D4). A live
-// enclosure layer is Phase 2 work, if it is built at all. Nothing below may
-// describe a layer this file does not execute.
+// An earlier revision of this header and of DECISIONS.md described an
+// "L1 ENCLOSURE" layer against FLINT acb_lgamma intervals over 84
+// combinations. That layer has never existed in any committed tree; the claim
+// is struck (readiness review finding D4). Nothing below may describe a layer
+// this file does not execute.
 //
-//   L2 GOLDEN: committed mpmath values compared in full mpfr precision;
-//       tolerance is exactly the certified radius (no additive fudge).
-//       Corpus quantisation (~170 significant digits) sits far below every
-//       certified radius, so the comparison is not corpus-limited.
-//   L3 POLICY EQUALITY: radius equals an independent transcription of the
-//       full derivation (remainder x safety + mpfr slack + coefficient
-//       representation slack), within 1e-3 relative (the transcription
-//       approximates post-series |centre| in closed form; that difference is
-//       provably < 1e-3 for t >= 200).
+//   DOMAIN  t0 is a dispatch switch, not a domain floor: below it the log
+//       Gamma path returns a certified ball. The floor asserted here is the
+//       real one, t > 0 and finite.
+//   L2  GOLDEN, series path: committed mpmath values compared in full mpfr
+//       precision; tolerance is exactly the certified radius (no additive
+//       fudge). Corpus quantisation (~170 significant digits) sits far below
+//       every certified radius, so the comparison is not corpus-limited.
+//   L2b GOLDEN, log Gamma path (D8): same discipline, 28 heights from 1e-6 to
+//       199.999 plus the overlap band. This layer is also what pins the
+//       branch: a slip moves theta by a multiple of 2 pi, which no radius
+//       here can absorb.
+//   L4  OVERLAP: on [t0, 2 t0] both derivations are defined and must agree
+//       within their combined radii. They share no coefficient, no truncation
+//       argument and no remainder bound, so this is the only layer that
+//       checks a certified radius against something that is neither a corpus
+//       nor a transcription of its own derivation.
+//   L5  BERNOULLI ORACLE: the exact recurrence that feeds both certified
+//       series, against FLINT's own table (ATTACKS.md row 3).
+//   L3  POLICY EQUALITY: radius equals an independent transcription of the
+//       full series-path derivation, within 1e-3 relative.
 //
 // Known limit, recorded rather than hidden (review finding A3): L2 cannot see
 // a radius that is merely too small in the regime where the mpfr slack term
 // dominates, and the D1 truncation bound is empirically calibrated, not
-// proven, until MATHS.md O1 closes. L3 is what detects production drift.
+// proven, until MATHS.md O1 closes. L3 is what detects production drift on the
+// series path. The D8 path carries no safety factor, so L2b and L4 bound it
+// directly.
 //
 // Sabotage hooks (compile-time gated: ZF_SABOTAGE_HOOKS, see core/src/sabotage.cpp):
 //   ZF_IMPL_RADIUS_SCALE  scales production radius -> breaks L2 and L3
 //   ZF_TEST_BOUND_SCALE   scales transcribed bound  -> breaks L3 equality
 //   ZF_GOLDEN_PATH        points at corrupted corpus -> breaks L2
+//   ZF_GOLDEN_SUBT0_PATH  points at corrupted sub-t0 corpus -> breaks L2b
 
 #include <cmath>
 #include <cstdio>
@@ -35,9 +48,15 @@
 #include <limits>
 #include <string>
 
+// zetaforge headers first: they pull in gmp.h and mpfr.h, and FLINT guards its
+// mpq/mpfr interoperability declarations on those having been seen already.
 #include "check.hpp"
 #include "zetaforge/ball.hpp"
+#include "zetaforge/bernoulli.hpp"
 #include "zetaforge/theta.hpp"
+
+#include <flint/fmpq.h>
+#include <flint/bernoulli.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -47,9 +66,14 @@
 #define THETA_GOLDEN_CSV "docs/golden/theta_golden.csv"
 #endif
 
+#ifndef THETA_GOLDEN_SUBT0_CSV
+#define THETA_GOLDEN_SUBT0_CSV "docs/golden/theta_golden_subt0.csv"
+#endif
+
 using zetaforge::Ball;
 using zetaforge::kThetaSafety;
 using zetaforge::theta_certified;
+using zetaforge::theta_certified_loggamma;
 
 namespace {
 
@@ -58,6 +82,11 @@ constexpr mpfr_prec_t kPrec = 128;
 const char* golden_path() {
   const char* e = std::getenv("ZF_GOLDEN_PATH");
   return e ? e : THETA_GOLDEN_CSV;
+}
+
+const char* golden_subt0_path() {
+  const char* e = std::getenv("ZF_GOLDEN_SUBT0_PATH");
+  return e ? e : THETA_GOLDEN_SUBT0_CSV;
 }
 
 double g_scale() {
@@ -93,15 +122,40 @@ int main() {
   std::fprintf(stdout, "SEED %llx\n",
                static_cast<unsigned long long>(::zftest::current_seed()));
 
-  // t0 rejection path (D2).
-  bool threw = false;
-  try {
-    auto b = theta_certified(199.999, kPrec);
-    (void)b;
-  } catch (const std::domain_error&) {
-    threw = true;
+  // Domain. t0 is a dispatch switch, not a domain floor: 199.999 now returns a
+  // certified ball from the log Gamma path (MATHS.md D8), so the assertion
+  // that it THROWS is retired. It is replaced, not deleted: the real domain
+  // floor is asserted instead, because a function that accepts t <= 0 or a NaN
+  // would be a worse defect than the one the old assertion guarded.
+  {
+    const Ball below_t0 = theta_certified(199.999, kPrec);
+    ZF_CHECK(below_t0.radius() > 0.0);
+    ZF_CHECK(!below_t0.unknown_at_precision());
+
+    int rejected = 0;
+    for (double bad : {0.0, -1.0, -1e-300}) {
+      try {
+        auto b = theta_certified(bad, kPrec);
+        (void)b;
+      } catch (const std::domain_error&) {
+        ++rejected;
+      }
+    }
+    try {
+      auto b = theta_certified(std::numeric_limits<double>::quiet_NaN(), kPrec);
+      (void)b;
+    } catch (const std::invalid_argument&) {
+      ++rejected;
+    }
+    try {
+      auto b = theta_certified(std::numeric_limits<double>::infinity(), kPrec);
+      (void)b;
+    } catch (const std::invalid_argument&) {
+      ++rejected;
+    }
+    ZF_CHECK(rejected == 5);
+    std::fprintf(stdout, "THETA_DOMAIN_REJECTED %d\n", rejected);
   }
-  ZF_CHECK(threw);
 
   // ---- L1+L2: enclosure sweep against the committed corpus -------------
   // The oracle is mpmath loggamma (independent derivation path), committed as
@@ -160,6 +214,121 @@ int main() {
     ZF_CHECK(combos >= 84);
     std::fprintf(stdout, "L12_COMBOS %d\n", combos);
     std::fprintf(stdout, "L12_TIGHT_ZONE_MAX_ERR_OVER_BOUND %.6f\n", tight_max);
+  }
+
+  // ---- L2b: sub-t0 corpus enclosure (MATHS.md D8) -----------------------
+  // Same discipline as L2: tolerance is the certified radius exactly, with no
+  // additive slack, compared in full mpfr precision. The corpus heights are
+  // exact double expansions, because a reference taken at the decimal literal
+  // instead of at the double it parses to differs by theta'(t) * 1e-16, which
+  // is far above the certified radius.
+  //
+  // This layer is also what pins the branch. The recurrence and the Stirling
+  // expansion are both on the principal branch; a slip on any factor moves
+  // theta by a multiple of 2 pi, which no radius here can absorb.
+  {
+    std::ifstream fh(golden_subt0_path());
+    ZF_CHECK(fh.good());
+    std::string line;
+    int combos = 0;
+    double worst = 0.0;
+    mpfr_t g, d, tol;
+    mpfr_init2(g, 1200); mpfr_init2(d, 1200); mpfr_init2(tol, 160);
+    const mpfr_prec_t precs[4] = {128, 192, 256, 512};
+    while (std::getline(fh, line)) {
+      if (line.empty() || line[0] == '#') continue;
+      if (line.rfind("t,value", 0) == 0) continue;
+      const auto comma = line.find(',');
+      if (comma == std::string::npos) continue;
+      const double t = std::strtod(line.substr(0, comma).c_str(), nullptr);
+      if (mpfr_set_str(g, line.substr(comma + 1).c_str(), 10, MPFR_RNDN) != 0) {
+        continue;
+      }
+      for (int pi_idx = 0; pi_idx < 4; ++pi_idx) {
+        const mpfr_prec_t pr = precs[pi_idx];
+        const Ball th = theta_certified_loggamma(t, pr);
+        ZF_CHECK(th.radius() > 0.0);
+        mpfr_sub(d, th.centre(), g, MPFR_RNDN);
+        mpfr_abs(d, d, MPFR_RNDN);
+        mpfr_set_d(tol, th.radius(), MPFR_RNDN);
+        if (mpfr_cmp(d, tol) > 0) {
+          std::printf("SUBT0MISS pr=%d t=%.17g d=%.6g tol=%.6g\n",
+                      (int)pr, t, mpfr_get_d(d, MPFR_RNDN),
+                      mpfr_get_d(tol, MPFR_RNDN));
+        }
+        ZF_CHECK(mpfr_cmp(d, tol) <= 0);
+        const double ratio = mpfr_get_d(d, MPFR_RNDU) / th.radius();
+        if (ratio > worst) worst = ratio;
+        ++combos;
+      }
+    }
+    mpfr_clear(g); mpfr_clear(d); mpfr_clear(tol);
+    // 28 heights x 4 precisions. An exact threshold, not a lower bound: a
+    // silently dropped or unparseable row must fail (review finding C5).
+    ZF_CHECK(combos == 112);
+    std::fprintf(stdout, "SUBT0_COMBOS %d\n", combos);
+    std::fprintf(stdout, "SUBT0_MAX_ERR_OVER_RADIUS %.6f\n", worst);
+  }
+
+  // ---- L4: the two derivations must agree on the overlap band ------------
+  // The series path (D1) and the log Gamma path (D8) share no coefficient, no
+  // truncation argument and no remainder bound. On [t0, 2 t0] both are
+  // defined, so their enclosures must intersect. This is the only layer that
+  // checks a certified radius against something other than a corpus or a
+  // transcription of its own derivation.
+  {
+    double worst = 0.0;
+    int checked = 0;
+    for (double h : {200.0, 210.0, 250.0, 300.0, 350.0, 400.0}) {
+      for (mpfr_prec_t pr : {(mpfr_prec_t)128, (mpfr_prec_t)256}) {
+        const Ball a = theta_certified(h, pr);
+        const Ball b = theta_certified_loggamma(h, pr);
+        mpfr_t d;
+        mpfr_init2(d, 512);
+        mpfr_sub(d, a.centre(), b.centre(), MPFR_RNDN);
+        mpfr_abs(d, d, MPFR_RNDN);
+        const double combined = a.radius() + b.radius();
+        const double ratio = mpfr_get_d(d, MPFR_RNDU) / combined;
+        mpfr_clear(d);
+        if (ratio > worst) worst = ratio;
+        ZF_CHECK(ratio <= 1.0);
+        ++checked;
+      }
+    }
+    ZF_CHECK(checked == 12);
+    std::fprintf(stdout, "OVERLAP_CHECKED %d\n", checked);
+    std::fprintf(stdout, "OVERLAP_MAX_DIFF_OVER_COMBINED %.6f\n", worst);
+  }
+
+  // ---- L5: Bernoulli oracle against FLINT (ATTACKS.md row 3) -------------
+  // The recurrence in core/src/bernoulli.cpp feeds both certified series. It is
+  // checked against the ten values transcribed in em_eval.cpp internally, and
+  // here against FLINT's own table, which shares no code with either.
+  {
+    mpq_t ours;
+    mpq_init(ours);
+    fmpq_t theirs;
+    fmpq_init(theirs);
+    mpq_t theirs_q;
+    mpq_init(theirs_q);
+    int mismatches = 0, checked = 0;
+    for (unsigned n : {1u, 2u, 3u, 5u, 8u, 10u, 17u, 31u, 64u, 100u, 128u}) {
+      zetaforge::bernoulli_2n(n, ours);
+      bernoulli_fmpq_ui(theirs, 2 * n);
+      fmpq_get_mpq(theirs_q, theirs);
+      if (mpq_cmp(ours, theirs_q) != 0) {
+        ++mismatches;
+        std::printf("BERNOULLI_MISMATCH n=%u\n", n);
+      }
+      ++checked;
+    }
+    mpq_clear(ours);
+    mpq_clear(theirs_q);
+    fmpq_clear(theirs);
+    ZF_CHECK(mismatches == 0);
+    ZF_CHECK(checked == 11);
+    std::fprintf(stdout, "BERNOULLI_ORACLE checked=%d mismatches=%d\n",
+                 checked, mismatches);
   }
 
   // ---- L3: policy equality ---------------------------------------------
