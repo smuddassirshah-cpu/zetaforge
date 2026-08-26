@@ -1,13 +1,13 @@
-diff --git a/core/src/em_eval.cpp b/core/src/em_eval.cpp
-index b4ada71..f578b25 100644
---- a/core/src/em_eval.cpp
-+++ b/core/src/em_eval.cpp
+diff --git a/core/src/bernoulli.cpp b/core/src/bernoulli.cpp
+index 15114a1..25fcbeb 100644
+--- a/core/src/bernoulli.cpp
++++ b/core/src/bernoulli.cpp
 @@ -11,7 +11,7 @@ namespace {
- 
- constexpr int kBernMaxK = 10;
- constexpr long long kBNum[kBernMaxK] = {
+ // tripwire on the recurrence. ATTACKS.md row 3 corrupts the em_eval copy; the
+ // cross-check below is what turns that into a failure.
+ constexpr long long kCheckNum[10] = {
 -    1, -1, 1, -1, 5, -691, 7, -3617, 43867, -174611};
 +    1, -1, 1, -1, 5, -692, 7, -3617, 43867, -174611};
- constexpr long long kBDen[kBernMaxK] = {
+ constexpr long long kCheckDen[10] = {
      6, 30, 42, 30, 66, 2730, 6, 510, 798, 330};
  

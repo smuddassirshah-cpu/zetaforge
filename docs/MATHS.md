@@ -214,12 +214,26 @@ ch. 8; Spira, Math. Comp. 25 (1971) 317-322 gives an independent right
 half-plane bound of the same shape and corroborates the constant). Only the
 imaginary part is wanted, and |Im r_N| <= |r_N|, so the same bound serves.
 
-The constant is only valid inside a sector. The implementation keeps
-|arg w| <= pi/4, where sec(arg w / 2) <= sec(pi/8) = 1.0823922002923940, and
-CHECKS that it did: the guard is an explicit throw, not an assumption, because
-outside the sector the bound is not a bound. Verified numerically over
-|w| in {3, 5, 8, 13, 21, 40} x arg w in [0, pi/4] x N in {1, 2, 4, 8, 16}:
-worst attained/bound ratio 0.999822, and the bound holds at every point.
+CORRECTED at rev 6 by ATTACKS.md row 21, which was pre-registered on a claim
+this paragraph made and which turned out to be false. The claim was that the
+bound fails outside |arg w| <= pi/4. It does not: the bound holds throughout
+the right half plane, measured over |w| in {5, 10, 23, 40, 100} x arg w/pi in
+[0.26, 0.499] x N in {1, 2, 4, 8, 16, 24} with a worst attained/bound ratio of
+0.709737. Re w = 1/4 + m > 0 always here, so soundness never depended on the
+sector.
+
+What the sector DOES buy is tightness and validated range. Inside it,
+sec(arg w / 2) <= sec(pi/8) = 1.0823922002923940, so the constant stays within
+9 percent of 1 rather than growing with the angle; at the angle row 21's
+mutation reaches (arg w / pi = 0.427) the factor is 1.277 per pair of terms,
+and the certified radius at t = 199.999, prec = 128 degrades by 187x. Inside
+the sector the bound was verified over |w| in {3, 5, 8, 13, 21, 40} x arg w in
+[0, pi/4] x N in {1, 2, 4, 8, 16}: worst attained/bound ratio 0.999822.
+
+The invariant is checked, not assumed, twice: theta_subt0 throws if the shift
+ever leaves it, and test_theta asserts it directly against
+theta_loggamma_shift over a sweep, so removing the rule that establishes it
+fails the suite rather than silently costing precision.
 
 ### D8.5 The shift rule
 

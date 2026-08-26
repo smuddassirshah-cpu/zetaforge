@@ -105,9 +105,13 @@ Ball theta_subt0(double t, mpfr_prec_t prec) {
   mpfr_div_2ui(lnabsw.v, lnabsw.v, 1, MPFR_RNDN);   // ln|w|
   mpfr_atan2(argw.v, wi.v, wr.v, MPFR_RNDN);
 
-  // Sector guard. The remainder constant below is only validated for
-  // |arg w| <= pi/4; outside it the bound is not a bound. Checked rather than
-  // assumed (docs/gate/ATTACKS.md row 21).
+  // Sector invariant, checked rather than assumed (ATTACKS.md row 21). The
+  // Stieltjes bound is sound throughout Re w > 0, so this is NOT what keeps
+  // the radius honest: it keeps sec(arg w / 2) <= sec(pi/8) = 1.0824 so the
+  // constant stays near 1, and it keeps evaluation inside the region the bound
+  // was numerically validated over. An earlier draft of MATHS.md D8.4 claimed
+  // the bound fails outside the sector; row 21 measured that claim and it was
+  // false. See D8.4.
   if (!(w_im <= w_re)) {
     throw std::logic_error(
         "theta sub-t0: shift left w outside the validated Stirling sector");
@@ -220,6 +224,13 @@ Ball theta_subt0(double t, mpfr_prec_t prec) {
 }
 
 }  // namespace
+
+unsigned long theta_loggamma_shift(double t, mpfr_prec_t prec) {
+  if (!std::isfinite(t) || t <= 0.0) {
+    throw std::domain_error("theta_loggamma_shift requires finite t > 0");
+  }
+  return theta_shift(t, static_cast<long>(prec) + 16);
+}
 
 Ball theta_certified_loggamma(double t, mpfr_prec_t prec) {
   if (!std::isfinite(t)) {

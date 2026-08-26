@@ -24,6 +24,9 @@
 //       nor a transcription of its own derivation.
 //   L5  BERNOULLI ORACLE: the exact recurrence that feeds both certified
 //       series, against FLINT's own table (ATTACKS.md row 3).
+//   L6  SECTOR: the Gamma-recurrence shift must keep |arg w| <= pi/4. A
+//       tightness and validated-range invariant, not a soundness one
+//       (ATTACKS.md row 21).
 //   L3  POLICY EQUALITY: radius equals an independent transcription of the
 //       full series-path derivation, within 1e-3 relative.
 //
@@ -298,6 +301,40 @@ int main() {
     ZF_CHECK(checked == 12);
     std::fprintf(stdout, "OVERLAP_CHECKED %d\n", checked);
     std::fprintf(stdout, "OVERLAP_MAX_DIFF_OVER_COMBINED %.6f\n", worst);
+  }
+
+  // ---- L6: the Stirling sector invariant (ATTACKS.md row 21) -------------
+  // Re(z + m) >= Im(z + m), i.e. |arg w| <= pi/4. Asserted directly against
+  // the shift the implementation would use, rather than trusting that the rule
+  // establishing it is still in theta_shift. This is a tightness and
+  // validated-range invariant, not a soundness one: the Stieltjes bound holds
+  // throughout Re w > 0 (MATHS.md D8.4). Without this layer, deleting the
+  // sector term costs 187x of certified radius at t = 199.999 and nothing in
+  // the suite notices.
+  {
+    int checked = 0, violations = 0;
+    double worst_arg_over_pi = 0.0;
+    for (double t : {1e-6, 0.5, 1.0, 5.0, 14.1347251417, 50.0, 100.0, 150.0,
+                     199.999, 250.0, 400.0}) {
+      for (mpfr_prec_t pr : {(mpfr_prec_t)128, (mpfr_prec_t)192,
+                             (mpfr_prec_t)256, (mpfr_prec_t)512}) {
+        const unsigned long m = zetaforge::theta_loggamma_shift(t, pr);
+        const double w_re = 0.25 + static_cast<double>(m);
+        const double w_im = t / 2.0;
+        const double arg_over_pi = std::atan2(w_im, w_re) / M_PI;
+        if (arg_over_pi > worst_arg_over_pi) worst_arg_over_pi = arg_over_pi;
+        if (!(w_im <= w_re)) {
+          ++violations;
+          std::printf("SECTOR_VIOLATION t=%.17g prec=%d m=%lu arg/pi=%.6f\n",
+                      t, (int)pr, m, arg_over_pi);
+        }
+        ++checked;
+      }
+    }
+    ZF_CHECK(violations == 0);
+    ZF_CHECK(checked == 44);
+    std::fprintf(stdout, "SECTOR_CHECKED %d violations %d max_arg_over_pi %.6f\n",
+                 checked, violations, worst_arg_over_pi);
   }
 
   // ---- L5: Bernoulli oracle against FLINT (ATTACKS.md row 3) -------------
