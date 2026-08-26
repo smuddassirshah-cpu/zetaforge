@@ -93,8 +93,19 @@ interviewer's first follow-up is always "compared to what?".
   tools/discover_theta_coefficients.py, run verbatim today, returns a
   sign-flipped c_6 and garbage beyond c_5 while printing a cross-check that
   looks like success. The committed coefficient table is correct and
-  independently re-verified; only its documented provenance is broken. Fixing
-  or retiring the tool is Phase 2 work and is NOT done in rev 5; the Newton-polish c_6 value
+  independently re-verified; only its documented provenance is broken.
+  FINAL RESOLUTION 2026-08-26 (rev 6): the discovery ladder is retired
+  outright, not repaired. Discovery was the wrong instrument: the coefficients
+  have a closed form, c_k = (1 - 2^(1-2k)) |B_2k| / (4k(2k-1)), which generates
+  the whole table in one line and is now the reference of record (MATHS.md
+  D1a). A numerical fit can only ever agree with it to within its own snapping
+  tolerance, which is exactly how the wrong values got in. The script keeps its
+  filename and becomes a confirmer: it parses kCRat, kC7 and kC8 out of
+  core/src/theta.cpp rather than carrying its own copy, regenerates them from
+  the closed form, checks the series residual against the first omitted term at
+  five heights, and exits non-zero on any disagreement.
+  tests/test_theta_coefficients.py runs it on every push, so the provenance
+  chain is executable rather than narrated; the Newton-polish c_6 value
   and its "4e-62 residual" claim (degenerate 6-point overfit whose held-out
   t=200 residual contradicted the first-omitted-term model by ~1e3x); the
   "2^(2n)-1 numerator pattern" observation (broken by c_6's numerator).
