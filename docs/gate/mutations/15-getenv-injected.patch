@@ -1,17 +1,17 @@
 diff --git a/core/src/theta.cpp b/core/src/theta.cpp
-index 313eaa2..b27a007 100644
+index 839323a..7631c1d 100644
 --- a/core/src/theta.cpp
 +++ b/core/src/theta.cpp
-@@ -3,6 +3,7 @@
- #include "zetaforge/theta.hpp"
+@@ -5,6 +5,7 @@
  
+ #include <algorithm>
  #include <cmath>
 +#include <cstdlib>
  #include <stdexcept>
  
  namespace zetaforge {
-@@ -51,6 +52,8 @@ Ball theta_certified(double t, mpfr_prec_t prec) {
-         "theta series below RS-validity threshold t0=200; EM path owns this range");
+@@ -257,6 +258,8 @@ Ball theta_certified(double t, mpfr_prec_t prec) {
+     return theta_subt0(t, prec);
    }
  
 +  const char* zf_gate_knob = std::getenv("ZF_GATE_ROW15");
