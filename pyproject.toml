@@ -17,7 +17,10 @@ forge = "tools.cli:main"
 # false exactness claim. The lockfile discipline for python lands with the
 # first real dependency (stage 8) via a constraints file.
 [project.optional-dependencies]
-dev = ["pytest>=8,<9"]
+# mpmath and sympy are the oracle side of the theta coefficient
+# confirmer (tools/discover_theta_coefficients.py, MATHS.md D1a). They
+# are test-only: no production path imports them.
+dev = ["pytest>=8,<9", "mpmath>=1.3", "sympy>=1.12"]
 
 [tool.setuptools]
 packages = ["tools", "orchestrate", "analysis"]
