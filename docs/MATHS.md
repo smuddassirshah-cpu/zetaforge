@@ -320,6 +320,17 @@ stated purpose, and was written into the code without a derivation anywhere.
   Riemann-Siegel formula, I. Math. Comp. 80 (2011), 995-1009. [Certified term
   and remainder bounds for RS; part II, arXiv:2201.00342, tracks floating-
   point error sources]
+- Edwards. Riemann's Zeta Function. Academic Press, 1974, section 6.4.
+  [Backlund's explicit remainder bound for the Euler-Maclaurin evaluation of
+  zeta: first omitted term times |s + 2M + 1| / (sigma + 2M + 1). This is the
+  D8 remainder bound of record, replacing the first-omitted-term-times-safety
+  policy, which is not a theorem on the critical line]
+- Olver. Asymptotics and Special Functions. Academic Press, 1974, ch. 8.
+  [Stirling-series remainder for log Gamma; the Stieltjes sectoral form
+  |r_N| <= |A_{N+1}| sec^{2N+2}(arg w / 2) is the bound certified in D8]
+- Spira. Calculation of the gamma function by Stirling's formula. Math.
+  Comp. 25 (1971), 317-322. [Independent right-half-plane remainder bound of
+  the same shape as D8's constant; corroboration, not the source]
 - Gabcke. Neue Herleitung und explizite Restabschatzung der Riemann-Siegel-
   Formel. Dissertation, Gottingen, 1979. [Historical primary for the expansion
   and first ten remainder bounds on the critical line]
