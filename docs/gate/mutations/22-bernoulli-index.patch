@@ -1,0 +1,15 @@
+diff --git a/core/src/bernoulli.cpp b/core/src/bernoulli.cpp
+index 15114a1..8d27441 100644
+--- a/core/src/bernoulli.cpp
++++ b/core/src/bernoulli.cpp
+@@ -115,8 +115,8 @@ void bernoulli_2n(unsigned n, mpq_t out) {
+   }
+   verify_against_committed_table();
+   Table& t = table();
+-  t.ensure(2 * n);
+-  mpq_set(out, t.at(2 * n));
++  t.ensure(2 * n + 2);              // ATTACKS.md row 22
++  mpq_set(out, t.at(2 * n + 2));
+ }
+ 
+ }  // namespace zetaforge

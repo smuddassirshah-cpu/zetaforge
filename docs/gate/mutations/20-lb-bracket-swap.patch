@@ -1,0 +1,15 @@
+diff --git a/core/tests/test_zeta.cpp b/core/tests/test_zeta.cpp
+index 075c1b1..8043998 100644
+--- a/core/tests/test_zeta.cpp
++++ b/core/tests/test_zeta.cpp
+@@ -66,8 +66,8 @@ constexpr slong kOraclePrec = 320;
+ // gamma_1 = 14.134725141734693790... The bracket points straddle it by about
+ // 5e-11, which is far outside every certified radius here and far inside the
+ // spacing to the next zero at 21.02.
+-constexpr double kGamma1Below = 14.1347251417;
+-constexpr double kGamma1Above = 14.1347251418;
++constexpr double kGamma1Below = 14.1347251418;   // ATTACKS.md row 20
++constexpr double kGamma1Above = 14.1347251417;
+ 
+ void oracle_hardy_z(double t, double& lo, double& hi) {
+   acb_t tt, z;

@@ -1,0 +1,23 @@
+diff --git a/core/src/em_eval.cpp b/core/src/em_eval.cpp
+index 3632b54..f89b15e 100644
+--- a/core/src/em_eval.cpp
++++ b/core/src/em_eval.cpp
+@@ -80,17 +80,7 @@ double backlund_bound(double t, long n, int m, mpfr_prec_t p) {
+   mpfr_sqrt(term.v, tmp.v, MPFR_RNDU);
+   mpfr_mul(acc.v, acc.v, term.v, MPFR_RNDU);
+ 
+-  // times |s + 2M+1| / (1/2 + 2M+1)
+-  const double shift = static_cast<double>(2 * m + 1);
+-  mpfr_set_d(tmp.v, 0.5 + shift, MPFR_RNDU);
+-  mpfr_sqr(tmp.v, tmp.v, MPFR_RNDU);
+-  mpfr_set_d(term.v, t, MPFR_RNDU);
+-  mpfr_sqr(term.v, term.v, MPFR_RNDU);
+-  mpfr_add(tmp.v, tmp.v, term.v, MPFR_RNDU);
+-  mpfr_sqrt(tmp.v, tmp.v, MPFR_RNDU);
+-  mpfr_mul(acc.v, acc.v, tmp.v, MPFR_RNDU);
+-  mpfr_set_d(tmp.v, 0.5 + shift, MPFR_RNDD);
+-  mpfr_div(acc.v, acc.v, tmp.v, MPFR_RNDU);
++  // Backlund factor replaced by 1: ATTACKS.md row 16
+ 
+   return mpfr_get_d(acc.v, MPFR_RNDU);
+ }

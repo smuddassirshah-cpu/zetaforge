@@ -1,0 +1,13 @@
+diff --git a/core/src/em_eval.cpp b/core/src/em_eval.cpp
+index 3632b54..2162289 100644
+--- a/core/src/em_eval.cpp
++++ b/core/src/em_eval.cpp
+@@ -163,7 +163,7 @@ ZResult zeta_em(double t, mpfr_prec_t prec) {
+   };
+ 
+   Mp tr(P), ti(P);
+-  for (long n = 1; n < N; ++n) {
++  for (long n = 1; n < N / 2; ++n) {   // ATTACKS.md row 17
+     n_pow_minus_s(n, tr.v, ti.v);
+     mpfr_add(u.v, u.v, tr.v, MPFR_RNDN);
+     mpfr_add(v.v, v.v, ti.v, MPFR_RNDN);
