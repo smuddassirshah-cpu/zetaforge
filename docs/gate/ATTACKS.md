@@ -25,7 +25,17 @@ Rules:
 Provenance: rows 1 to 11 are the sabotage matrix measured by the independent
 readiness review of 2026-08-24 (docs/REVIEW-2026-08-24.md, finding C7) against
 commit 33615d4. Rows 12 to 14 were added by that review's Phase 1 findings.
-Row 15 is the environment-knob guard introduced in rev 5.
+Row 15 is the environment-knob guard introduced in rev 5. Rows 16 to 24 were
+pre-registered at rev 6 BEFORE any of the code they attack was written, which
+is the only ordering under which a mutation can be said to have been chosen
+blind to the implementation. Their Expected column was fixed in that same
+commit and may not be edited to match a measurement afterwards.
+
+Two of them are instrument-health rows rather than sabotage: row 19 measures
+whether anything except the L-C assertion covers the imaginary-cancellation
+invariant, and row 20 mutates the L-B bracket itself to prove that layer is not
+vacuous. Row 3 changes from an accepted blind spot to a live row at rev 6,
+because the Bernoulli table finally has a consumer.
 
 ## How a row is run
 
@@ -51,6 +61,7 @@ Field conventions:
   inspects sources rather than a binary.
 - Command: run from the repository root. `$B` expands to the battery's build
   directory. Leading NAME=VALUE tokens are applied as environment variables.
+  No cell may contain a `|`, escaped or not: the battery splits rows on it.
 - Expected: the exit code the row must produce. It is an assertion, not a
   prediction: a row whose real behaviour changes must have this column changed
   in the same commit, which is what keeps the ledger honest.
@@ -68,7 +79,7 @@ and it is what the CI leg "gate-battery" reruns on every push to main.
 |---|---|---|---|---|---|---|---|---|
 | 1 | radius.hpp round_up_positive sticky bump removed | 01-radius-sticky.patch | - | $B/core/test_radius | 1 | DETECTED (exit 1) | DETECTED (exit 1, radius_exact) | DETECTED (exit 1) |
 | 2 | theta.cpp truncation term x0.5 | 02-theta-truncation-half.patch | - | $B/core/test_theta | 1 | DETECTED (exit 1, via L3) | DETECTED (exit 1, via L3) | DETECTED (exit 1) |
-| 3 | em_eval Bernoulli numerator corrupted | 03-bernoulli-corrupt.patch | - | ctest --test-dir $B | 0 | UNDETECTED (exit 0) | UNDETECTED (exit 0), accepted | UNDETECTED (exit 0), accepted |
+| 3 | em_eval Bernoulli numerator corrupted | 03-bernoulli-corrupt.patch | - | ctest --test-dir $B | 1 | UNDETECTED (exit 0) | UNDETECTED (exit 0), accepted | UNDETECTED (exit 0), accepted; row goes live at rev 6, see below |
 | 4 | cball mul radius x0.9 | 04-cball-mul-radius-0.9.patch | - | $B/core/test_cball | 1 | UNDETECTED (exit 0) | DETECTED (exit 1) | DETECTED (exit 1) |
 | 5 | cball mul radius x0.5 | 05-cball-mul-radius-0.5.patch | - | $B/core/test_cball | 1 | UNDETECTED (exit 0) | DETECTED (exit 1) | DETECTED (exit 1) |
 | 6 | cball mul radius x0.25 | 06-cball-mul-radius-0.25.patch | - | $B/core/test_cball | 1 | DETECTED (exit 1) | DETECTED (exit 1) | DETECTED (exit 1) |
@@ -81,15 +92,24 @@ and it is what the CI leg "gate-battery" reruns on every push to main.
 | 13 | Ball::parse("1e-320") claims radius 0 | 13-parse-false-exact.patch | - | $B/core/test_ball | 1 | UNDETECTED (no such test) | DETECTED (exit 1, test_ball) | DETECTED (exit 1) |
 | 14 | Ffix::mul(2^32, 2^32) wraps to raw 0 | 14-ffix-mul-wrap.patch | - | $B/core/test_ffix | 1 | UNDETECTED (no such test) | DETECTED (exit 1, test_ffix) | DETECTED (exit 1) |
 | 15 | environment read in core/src outside sabotage.cpp | 15-getenv-injected.patch | (no build) | tools/check_no_env_knobs.sh | 1 | n/a (no guard existed) | GUARD FAILS as required | GUARD FAILS as required (exit 1) |
+| 16 | EM remainder: Backlund factor abs(s+2M+1)/(sigma+2M+1) replaced by 1 | 16-backlund-factor-one.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (no EM path) | n/a (no EM path) | pre-registered |
+| 17 | EM Dirichlet sum truncated below the pinned N, radius left unchanged | 17-em-short-sum.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (no EM path) | n/a (no EM path) | pre-registered |
+| 18 | Z assembly: cos and sin swapped (theta sign convention flipped) | 18-z-sincos-swap.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (no EM path) | n/a (no EM path) | pre-registered |
+| 19 | L-C removed: the imaginary-part-contains-zero assertion deleted from test_zeta | 19-lc-disabled.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 0 | n/a (no EM path) | n/a (no EM path) | pre-registered |
+| 20 | L-B gamma_1 bracket endpoints swapped in test_zeta | 20-lb-bracket-swap.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (no EM path) | n/a (no EM path) | pre-registered |
+| 21 | Stirling sector guard removed: m no longer raised to keep arg w inside pi/4 | 21-stirling-sector.patch | - | $B/core/test_theta | 1 | n/a (no sub-t0 path) | n/a (no sub-t0 path) | pre-registered |
+| 22 | Bernoulli recurrence index shifted by one | 22-bernoulli-index.patch | - | $B/core/test_theta | 1 | n/a (no recurrence) | n/a (no recurrence) | pre-registered |
+| 23 | sub-t0 golden corpus, one digit flipped | 23-subt0-golden-digit.patch | - | $B/core/test_theta | 1 | n/a (no corpus) | n/a (no corpus) | pre-registered |
+| 24 | Ffix error composition wraps instead of saturating | 24-ffix-err-wrap.patch | - | $B/core/test_ffix | 1 | n/a (no such test) | n/a (no such test) | pre-registered |
 
 ## Accepted blind spots
 
 Recorded rather than hidden. Each names the stage that closes it.
 
-- Row 3 (Bernoulli table): the table has no live consumer while zeta_em is a
-  throwing stub, so no test can currently observe a corrupted entry. Closed by
-  Phase 2, which must land a Bernoulli oracle test alongside the EM
-  implementation.
+- Row 3 (Bernoulli table): CLOSED at rev 6. The table has a live consumer as
+  soon as zeta_em evaluates, and a Bernoulli oracle test against FLINT's
+  bernoulli table runs beside it, so the row's Expected column changes from 0
+  to 1.
 - Row 2 detects only through L3 policy equality, an independent transcription
   of the same derivation, not through an enclosure layer. A radius that is
   wrong in both production and transcription would survive. Closed by MATHS.md

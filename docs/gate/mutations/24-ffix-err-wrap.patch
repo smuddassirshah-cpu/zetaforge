@@ -1,0 +1,17 @@
+diff --git a/core/include/zetaforge/ffix.hpp b/core/include/zetaforge/ffix.hpp
+index 3ca6a80..c9b2ec5 100644
+--- a/core/include/zetaforge/ffix.hpp
++++ b/core/include/zetaforge/ffix.hpp
+@@ -190,11 +190,7 @@ class Ffix {
+     if (a == 0 || b == 0) {
+       return 0;
+     }
+-    // Decided BEFORE the multiplication, not inspected after it.
+-    if (a > kErrMax / b) {
+-      return kErrMax;
+-    }
+-    return a * b;
++    return a * b;  // saturation removed: ATTACKS.md row 24
+   }
+ 
+   raw_t sum_err(const Ffix& o) const {
