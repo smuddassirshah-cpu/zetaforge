@@ -79,7 +79,7 @@ and it is what the CI leg "gate-battery" reruns on every push to main.
 |---|---|---|---|---|---|---|---|---|
 | 1 | radius.hpp round_up_positive sticky bump removed | 01-radius-sticky.patch | - | $B/core/test_radius | 1 | DETECTED (exit 1) | DETECTED (exit 1, radius_exact) | DETECTED (exit 1) |
 | 2 | theta.cpp truncation term x0.5 | 02-theta-truncation-half.patch | - | $B/core/test_theta | 1 | DETECTED (exit 1, via L3) | DETECTED (exit 1, via L3) | DETECTED (exit 1) |
-| 3 | Bernoulli numerator corrupted in the committed tripwire table | 03-bernoulli-corrupt.patch | - | ctest --test-dir $B | 1 | UNDETECTED (exit 0) | UNDETECTED (exit 0), accepted | UNDETECTED (exit 0), accepted; row goes live at rev 6, see below |
+| 3 | Bernoulli numerator corrupted in the committed tripwire table | 03-bernoulli-corrupt.patch | - | $B/core/test_theta | 1 | UNDETECTED (exit 0) | UNDETECTED (exit 0), accepted | UNDETECTED (exit 0), accepted; row goes live at rev 6, see below |
 | 4 | cball mul radius x0.9 | 04-cball-mul-radius-0.9.patch | - | $B/core/test_cball | 1 | UNDETECTED (exit 0) | DETECTED (exit 1) | DETECTED (exit 1) |
 | 5 | cball mul radius x0.5 | 05-cball-mul-radius-0.5.patch | - | $B/core/test_cball | 1 | UNDETECTED (exit 0) | DETECTED (exit 1) | DETECTED (exit 1) |
 | 6 | cball mul radius x0.25 | 06-cball-mul-radius-0.25.patch | - | $B/core/test_cball | 1 | DETECTED (exit 1) | DETECTED (exit 1) | DETECTED (exit 1) |

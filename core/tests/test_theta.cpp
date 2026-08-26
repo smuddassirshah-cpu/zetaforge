@@ -49,6 +49,7 @@
 #include <cstring>
 #include <fstream>
 #include <limits>
+#include <stdexcept>
 #include <string>
 
 // zetaforge headers first: they pull in gmp.h and mpfr.h, and FLINT guards its
@@ -121,7 +122,7 @@ double radius_transcribed(double t, int prec) {
 // rigorous oracle interval. Zero additive slack: no ulp nudges anywhere.
 }  // namespace
 
-int main() {
+static int run_suite() {
   std::fprintf(stdout, "SEED %llx\n",
                static_cast<unsigned long long>(::zftest::current_seed()));
 
@@ -377,4 +378,21 @@ int main() {
 
   std::fprintf(stdout, "THETA_SUITE failures %d\n", ::zftest::failure_count());
   return ::zftest::failure_count() == 0 ? 0 : 1;
+}
+
+// An exception escaping the suite is a failure, not a crash. Without this the
+// Bernoulli tripwire (ATTACKS.md row 3) took the process down with SIGABRT,
+// which is a worse diagnostic than a named failure and does not even produce a
+// stable exit code for the ledger to assert against.
+int main() {
+  try {
+    return run_suite();
+  } catch (const std::exception& e) {
+    std::fprintf(stderr, "ZF_CHECK failed: theta suite threw (%s) [seed %llx]\n",
+                 e.what(),
+                 static_cast<unsigned long long>(::zftest::current_seed()));
+    std::fprintf(stdout, "THETA_SUITE aborted by exception; failures %d\n",
+                 ::zftest::failure_count() + 1);
+    return 1;
+  }
 }
