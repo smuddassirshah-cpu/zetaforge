@@ -53,8 +53,17 @@ constexpr double kEmTMax = 400.0;
 enum class ZStatus { Certified, Contested };
 
 struct ZResult {
-  Ball re;       // real part of Z as a certified ball
+  Ball re;       // Z(t) itself: a REAL certified ball, which is the whole point
+  // Diagnostic, not part of the certified value. Z(t) is real for real t, so
+  // Im[e^{i theta} zeta] must be a ball CONTAINING ZERO (MATHS.md D8.9). It is
+  // a free simultaneous check on theta's branch, on the sign convention of the
+  // assembly and on the zeta ball, and test_zeta layer L-C asserts it.
+  Ball im;
   ZStatus status;
+  int em_n = 0;            // pinned Dirichlet length
+  int em_m = 0;            // pinned number of Bernoulli correction terms
+  double em_tail_bound = 0.0;  // Backlund bound at (em_n, em_m); test_zeta
+                               // layer L-D transcribes it independently
 };
 
 // Evaluates Z(t) for t > 0 (critical line). Throws std::invalid_argument

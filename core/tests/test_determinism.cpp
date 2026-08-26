@@ -1,7 +1,7 @@
 // Cross-configuration determinism probe (stage 2 attack item 8).
 //
-// Runs a fixed operation sequence over Ball, Ffix, NTT, theta_certified and
-// every CBall operation, and prints
+// Runs a fixed operation sequence over Ball, Ffix, NTT, theta_certified, every
+// CBall operation and zeta_em, and prints
 //   DETERMINISM_HASH <hex16>
 // CI runs this binary in the Release and Debug matrix legs and requires the
 // two hashes to be identical: -ffp-contract=off is load-bearing from this
@@ -16,6 +16,7 @@
 #include "check.hpp"
 #include "zetaforge/ball.hpp"
 #include "zetaforge/cball.hpp"
+#include "zetaforge/em_eval.hpp"
 #include "zetaforge/ffix.hpp"
 #include "zetaforge/ntt.hpp"
 #include "zetaforge/theta.hpp"
@@ -148,6 +149,30 @@ int main() {
       }
     }
     mpfr_clear(cf);
+  }
+
+  // ---- zeta_em: the whole stage 4 path in one place ----------------------
+  // Z(t) draws on theta (both derivations), the exact Bernoulli recurrence, the
+  // Dirichlet sum and the Backlund bound, so a contraction or reassociation
+  // difference anywhere under it lands here. The pinned N and M are hashed too:
+  // a configuration that silently chose a different truncation would otherwise
+  // be invisible whenever the two still agreed to the printed precision.
+  {
+    const double heights[] = {0.5, 14.1347251417, 50.0, 199.9, 400.0};
+    const mpfr_prec_t precs[] = {128, 256};
+    for (const double h : heights) {
+      for (const mpfr_prec_t pr : precs) {
+        const zetaforge::ZResult r = zetaforge::zeta_em(h, pr);
+        mix_mpfr(r.re.centre());
+        mix_double(r.re.radius());
+        mix_mpfr(r.im.centre());
+        mix_bytes(&r.em_n, sizeof(r.em_n));
+        mix_bytes(&r.em_m, sizeof(r.em_m));
+        mix_double(r.em_tail_bound);
+        const int st = r.status == zetaforge::ZStatus::Certified ? 1 : 0;
+        mix_bytes(&st, sizeof(st));
+      }
+    }
   }
 
   // Self-consistency: the sequence must produce a non-trivial digest.
