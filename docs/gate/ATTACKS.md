@@ -59,26 +59,28 @@ Field conventions:
 
 Baseline column: outcome measured at 33615d4, before the rev 5 repairs.
 Rev 5 column: measured at the rev 5 gate battery on 2026-08-24 by hand.
-Rev 6 column: measured by tools/gate_battery.sh, whose verbatim output is the
-gate evidence.
+Rev 6 column: measured by tools/gate_battery.sh at commit 4757a68 on
+Darwin 25.6.0 arm64, Apple clang 17.0.0, cmake 4.4.0. 15 rows, 15 PASS, tree
+diff-clean after every row. The script's verbatim output is the gate evidence
+and it is what the CI leg "gate-battery" reruns on every push to main.
 
 | # | Mutation | Patch | Configure | Command | Expected | Baseline (33615d4) | Rev 5 measured | Rev 6 measured |
 |---|---|---|---|---|---|---|---|---|
-| 1 | radius.hpp round_up_positive sticky bump removed | 01-radius-sticky.patch | - | $B/core/test_radius | 1 | DETECTED (exit 1) | DETECTED (exit 1, radius_exact) | pending |
-| 2 | theta.cpp truncation term x0.5 | 02-theta-truncation-half.patch | - | $B/core/test_theta | 1 | DETECTED (exit 1, via L3) | DETECTED (exit 1, via L3) | pending |
-| 3 | em_eval Bernoulli numerator corrupted | 03-bernoulli-corrupt.patch | - | ctest --test-dir $B | 0 | UNDETECTED (exit 0) | UNDETECTED (exit 0), accepted | pending |
-| 4 | cball mul radius x0.9 | 04-cball-mul-radius-0.9.patch | - | $B/core/test_cball | 1 | UNDETECTED (exit 0) | DETECTED (exit 1) | pending |
-| 5 | cball mul radius x0.5 | 05-cball-mul-radius-0.5.patch | - | $B/core/test_cball | 1 | UNDETECTED (exit 0) | DETECTED (exit 1) | pending |
-| 6 | cball mul radius x0.25 | 06-cball-mul-radius-0.25.patch | - | $B/core/test_cball | 1 | DETECTED (exit 1) | DETECTED (exit 1) | pending |
-| 7 | em_eval returns Ball 0.0 as Certified (rev 0 defect) | 07-em-certified-zero.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | UNDETECTED (exit 0, suite green) | DETECTED (exit 1, 36 enclosure failures) | pending |
-| 8 | ZF_IMPL_RADIUS_SCALE=0.1, hooks ON | - | -DZF_SABOTAGE_HOOKS=ON | ZF_IMPL_RADIUS_SCALE=0.1 $B/core/test_theta | 1 | UNDETECTED (channel dead) | DETECTED (exit 1) | pending |
-| 9 | ZF_IMPL_RADIUS_SCALE=0.1, hooks OFF | - | - | ZF_IMPL_RADIUS_SCALE=0.1 $B/core/test_theta | 0 | n/a (channel dead) | no effect (exit 0), as required | pending |
-| 10 | ZF_TEST_BOUND_SCALE=0.9 | - | - | ZF_TEST_BOUND_SCALE=0.9 $B/core/test_theta | 1 | DETECTED (exit 1) | DETECTED (exit 1) | pending |
-| 11 | golden corpus, one line dropped | 11-golden-line-dropped.patch | - | $B/core/test_theta | 1 | UNDETECTED (exit 0) | DETECTED (exit 1, combos 80 < 84) | pending |
-| 12 | golden corpus, one digit flipped | 12-golden-digit-flipped.patch | - | $B/core/test_theta | 1 | DETECTED (exit 1) | DETECTED (exit 1) | pending |
-| 13 | Ball::parse("1e-320") claims radius 0 | 13-parse-false-exact.patch | - | $B/core/test_ball | 1 | UNDETECTED (no such test) | DETECTED (exit 1, test_ball) | pending |
-| 14 | Ffix::mul(2^32, 2^32) wraps to raw 0 | 14-ffix-mul-wrap.patch | - | $B/core/test_ffix | 1 | UNDETECTED (no such test) | DETECTED (exit 1, test_ffix) | pending |
-| 15 | environment read in core/src outside sabotage.cpp | 15-getenv-injected.patch | (no build) | tools/check_no_env_knobs.sh | 1 | n/a (no guard existed) | GUARD FAILS as required | pending |
+| 1 | radius.hpp round_up_positive sticky bump removed | 01-radius-sticky.patch | - | $B/core/test_radius | 1 | DETECTED (exit 1) | DETECTED (exit 1, radius_exact) | DETECTED (exit 1) |
+| 2 | theta.cpp truncation term x0.5 | 02-theta-truncation-half.patch | - | $B/core/test_theta | 1 | DETECTED (exit 1, via L3) | DETECTED (exit 1, via L3) | DETECTED (exit 1) |
+| 3 | em_eval Bernoulli numerator corrupted | 03-bernoulli-corrupt.patch | - | ctest --test-dir $B | 0 | UNDETECTED (exit 0) | UNDETECTED (exit 0), accepted | UNDETECTED (exit 0), accepted |
+| 4 | cball mul radius x0.9 | 04-cball-mul-radius-0.9.patch | - | $B/core/test_cball | 1 | UNDETECTED (exit 0) | DETECTED (exit 1) | DETECTED (exit 1) |
+| 5 | cball mul radius x0.5 | 05-cball-mul-radius-0.5.patch | - | $B/core/test_cball | 1 | UNDETECTED (exit 0) | DETECTED (exit 1) | DETECTED (exit 1) |
+| 6 | cball mul radius x0.25 | 06-cball-mul-radius-0.25.patch | - | $B/core/test_cball | 1 | DETECTED (exit 1) | DETECTED (exit 1) | DETECTED (exit 1) |
+| 7 | em_eval returns Ball 0.0 as Certified (rev 0 defect) | 07-em-certified-zero.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | UNDETECTED (exit 0, suite green) | DETECTED (exit 1, 36 enclosure failures) | DETECTED (exit 1) |
+| 8 | ZF_IMPL_RADIUS_SCALE=0.1, hooks ON | - | -DZF_SABOTAGE_HOOKS=ON | ZF_IMPL_RADIUS_SCALE=0.1 $B/core/test_theta | 1 | UNDETECTED (channel dead) | DETECTED (exit 1) | DETECTED (exit 1) |
+| 9 | ZF_IMPL_RADIUS_SCALE=0.1, hooks OFF | - | - | ZF_IMPL_RADIUS_SCALE=0.1 $B/core/test_theta | 0 | n/a (channel dead) | no effect (exit 0), as required | no effect (exit 0), as required |
+| 10 | ZF_TEST_BOUND_SCALE=0.9 | - | - | ZF_TEST_BOUND_SCALE=0.9 $B/core/test_theta | 1 | DETECTED (exit 1) | DETECTED (exit 1) | DETECTED (exit 1) |
+| 11 | golden corpus, one line dropped | 11-golden-line-dropped.patch | - | $B/core/test_theta | 1 | UNDETECTED (exit 0) | DETECTED (exit 1, combos 80 < 84) | DETECTED (exit 1) |
+| 12 | golden corpus, one digit flipped | 12-golden-digit-flipped.patch | - | $B/core/test_theta | 1 | DETECTED (exit 1) | DETECTED (exit 1) | DETECTED (exit 1) |
+| 13 | Ball::parse("1e-320") claims radius 0 | 13-parse-false-exact.patch | - | $B/core/test_ball | 1 | UNDETECTED (no such test) | DETECTED (exit 1, test_ball) | DETECTED (exit 1) |
+| 14 | Ffix::mul(2^32, 2^32) wraps to raw 0 | 14-ffix-mul-wrap.patch | - | $B/core/test_ffix | 1 | UNDETECTED (no such test) | DETECTED (exit 1, test_ffix) | DETECTED (exit 1) |
+| 15 | environment read in core/src outside sabotage.cpp | 15-getenv-injected.patch | (no build) | tools/check_no_env_knobs.sh | 1 | n/a (no guard existed) | GUARD FAILS as required | GUARD FAILS as required (exit 1) |
 
 ## Accepted blind spots
 
