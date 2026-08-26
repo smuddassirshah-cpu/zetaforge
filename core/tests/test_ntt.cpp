@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <cstdint>
 #include <stdexcept>
 #include <vector>
@@ -26,6 +27,8 @@ std::vector<uint64_t> schoolbook(const std::vector<uint64_t>& a,
 }  // namespace
 
 int main() {
+  std::fprintf(stdout, "SEED %llx\n",
+               static_cast<unsigned long long>(::zftest::current_seed()));
   auto& rng = ::zftest::rng();
 
   // Known linear case.
