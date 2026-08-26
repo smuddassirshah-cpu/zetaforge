@@ -1,7 +1,7 @@
 # Build state
 
 Current stage: 4
-Last updated: 2026-08-24
+Last updated: 2026-08-26
 
 ## Stages
 | # | Stage | Status | Gate |
@@ -9,7 +9,8 @@ Last updated: 2026-08-24
 | 1 | Scaffolding + CI (revs 1-3) | approved | 2026-08-22 |
 | 2 | core/ball+ffix+ntt (rev 1) | approved | 2026-08-22 |
 | 3 | theta (D1/D2 closed) | approved | 2026-08-23 |
-| 4 | rs_main+rs_corr+em_eval | in progress | - |
+| 4 | em_eval + gamma_1 + cball (EM path) | awaiting review | - |
+| 4b | rs_main + rs_corr + overlap agreement (D3) | pending | - |
 | 5 | multipoint+signs+turing | pending | - |
 | 6 | verifier (Rust) | pending | - |
 | 7 | gpu + parity | pending | - |
@@ -61,6 +62,15 @@ Running log. One line each: date, decision, reason, PLAN.md deviation? y/n.
 - 2026-08-24 (rev 5), Revision commits use the form "stage 4 rev 5: <item>"; the
   gate form "stage <N>: <deliverable>" is reserved for the approved gate commit
   only (review finding D5), n
+- 2026-08-26 (rev 6), Stage 4 split recorded formally, on the grounds the rev 1
+  gate granted it: RS main and RS correction do not depend on the EM path. The
+  two are independent evaluation paths sharing only core/ball and theta, so the
+  EM path is a standalone certified deliverable and does not need rs_main to be
+  complete. Row 4 becomes "em_eval + gamma_1 + cball (EM path)" and a new row 4b
+  carries "rs_main + rs_corr + overlap agreement (D3)". The earlier premise that
+  recorded RS as depending on EM is struck rather than left standing. PLAN.md
+  section 11's stage 4 row still names all three; the split is recorded here and
+  PLAN is not edited, so this is a deviation, y
 - 2026-08-26 (rev 6), em_eval lives in core/ although PLAN.md section 3 puts it
   in zeta/. Recorded as a deviation rather than left unremarked (review finding
   D6, unclosed half). Reason: zeta/ in the plan is the Z(t) EVALUATION tree
@@ -184,6 +194,54 @@ docs/REVIEW-2026-08-24.md:
   theorem on the critical line and under-reports by up to ~17x (review A2).
 All four are Phase 2 work, deferred to rev 6 by the scope decision above.
 
+## Stage 4 rev 6 (readiness review Phase 2)
+
+Scope: docs/REVIEW-2026-08-24.md Phase 2, plus the rev 5 gate's Part A
+close-out. Part A was committed in full before any file was touched for Part B,
+as the gate required.
+
+Closed by ID:
+- R6-1 FIXED  mul_real charges its centre-rounding term at the precision the
+              result is actually rounded into; regression is test_cball C5,
+              which fails on the rev 5 implementation
+- R6-2 FIXED  C1, C2 and C4 ported to add and mul_real, on the check.hpp seed
+              stream, with stored precision and wp drawn independently
+- R6-3 FIXED  tools/gate_battery.sh, docs/gate/mutations/, CI leg gate-battery
+- R6-4 RECORDED  D-EM anchor corrected to D8; core/ placement of em_eval logged
+              as a deviation; review finding D6 downgraded to PARTIAL; kEmTMax
+              derived in D8.10 (also FIXED)
+- R6-5 RECORDED  the unreproducible stage 3 battery line marked in place with
+              both reasons it cannot have come from the tree it names
+- R6-6 FIXED  -Wall -Wextra -Wpedantic -Werror on every C++ target, zero
+              warnings, one __extension__ typedef instead of dropping
+              -Wpedantic; CI leg sanitisers
+- R6-7 RECORDED  the review-branch and tag sentence corrected; both halves were
+              false
+- R6-8 RECORDED  docs/releases/v0.2-kernel.md and v0.3-theta.md
+- E6   FIXED  CITATION.cff given-names
+
+Phase 2 items: A1 (D8 rewrite), A2 (Backlund), A4 (coefficient closed form),
+EM implementation, Bernoulli oracle, stage split. All landed.
+
+Found and fixed during the revision, not on any list:
+- Ffix error composition overflowed signed __int128, so the tracked bound could
+  WRAP SMALLER THAN THE TRUTH. Found by the sanitiser leg on its first run.
+- Two transcriptions of the same Bernoulli table, introduced by B4 and caught
+  by ATTACKS.md row 3 measuring UNDETECTED.
+- MATHS.md D8.4 claimed the Stieltjes bound fails outside the pi/4 sector. It
+  does not. Caught by row 21 measuring UNDETECTED.
+- The golden generator evaluated its reference at the decimal literal instead
+  of at the double the suite parses.
+
+Incidents, recorded rather than buried:
+- A gate mutation reached commit 951bfd9 through a careless `git add -A` after
+  the battery aborted mid-row. Caught on the next clean build by radius_exact
+  and by the cball C1 layer ported the same revision. Reverted at 15bd11f.
+- 173 build artefacts from the local sanitiser configuration reached two
+  commits the same way. Untracked, and .gitignore widened to build*/.
+- A stale binary produced a false "after the fix" result during the ffix work,
+  because a build error was suppressed. Third recorded instance in this project.
+
 ## Stage 4 rev 5 (readiness review Phase 0 and Phase 1)
 
 Scope: docs/REVIEW-2026-08-24.md Phase 0 (items 1-7) and Phase 1 (items 8-12).
@@ -248,25 +306,46 @@ Known gaps NOT closed this revision (carried forward):
 - MATHS.md O1 (Gabcke per-term constants) remains open and now has an explicit
   consequence recorded: the theta safety factor is load-bearing, not headroom.
 
-## Next action
-Rev 5 complete and awaiting gate review. Stage 4 remains "in progress": its
-definition of done is untouched by this revision by design.
+## Stage 4 definition of done (split row 4, EM path)
 
-Rev 6 is readiness-review Phase 2 and must not begin without the literal reply
-"approved, continue":
-- Rewrite MATHS.md D8. |Z| = |zeta| carries no sign, so the current plan cannot
-  certify the gamma_1 sign bracket the stage 4 DoD requires (review A1).
-  Certified sub-t0 theta via the Gamma recurrence into Stirling validity with
-  the explicit Binet remainder, then Z = u cos(theta) - v sin(theta).
-- Replace the EM remainder policy. First-omitted-term times 4 is not a theorem
-  on the critical line and under-reports by up to about 17x at cost-minimal N
-  (review A2). Use Backlund's constant as a ball and pin N from the target
-  radius.
-- Implement zeta_em; the armed suite (ZF_ARM_STAGE4) turns green only then.
-- Add a Bernoulli oracle test, closing the one accepted blind spot in
-  docs/gate/ATTACKS.md.
-- Write the closed-form coefficient derivation into MATHS.md and repair or
-  retire tools/discover_theta_coefficients.py (review A4).
-- Deliver rs_main and rs_corr with D3, or formally split stage 4 with a logged
-  decision. The stage cannot gate while its title names work that does not
-  exist.
+Every item is backed by a green test in the DEFAULT ctest set, which is what
+"awaiting review" requires under gate rule 3. Nothing here is armed-but-red and
+nothing is asserted in prose alone.
+
+| # | Item | Backed by | State |
+|---|---|---|---|
+| 1 | gamma_1 = 14.1347 reproduced via the Euler-Maclaurin path | test_zeta L-B: certified NEGATIVE at 14.1347251417, certified POSITIVE at 14.1347251418, sign change isolated in a bracket of width 1e-10 | green |
+| 2 | Certified theta for every finite t > 0 (MATHS.md D8) | test_theta L2b (112 combos, max err/radius 0.852895), L4 overlap against the independent series derivation (12 combos, max 0.250000), L6 sector invariant (44 combos, 0 violations) | green |
+| 3 | Complex ball operation bounds (MATHS.md D7b) | test_cball C1 to C5: containment, cut detection at 0.9x and 0.5x over the full precision grid, tightness within 4x, and the precision rule | green |
+| 4 | Z(t) matches an independent reference within certified radii on the overlap region | test_zeta L-A against acb_dirichlet_hardy_z, 40 combinations, zero additive slack, plus L-C and L-D | green |
+
+## Stage 4b definition of done (pending)
+
+- rs_main and rs_corr, with MATHS.md D3 (correction-series remainder bound at
+  campaign precision) written and numerically tested.
+- Agreement between the RS path and the EM path on the overlap band
+  [t0, kEmTMax] = [200, 400], within combined certified radii. The EM side of
+  that comparison exists and is green today; the RS side does not exist.
+- CARRIED FROM O1, which stays open: the theta series remainder bound above t0
+  is empirically calibrated, not proven, and its factor 4 is LOAD-BEARING, not
+  headroom. The confirmer measures the true residual over the first omitted
+  term at 1.000115 at t = 200, strictly above 1 at every height tested, so
+  without the factor the D1 bound is not a bound. Stage 4b's RS path inherits
+  that assumption directly, and stage 6's verifier is specified to trust
+  "published theta bounds", a premise that is false until O1 closes.
+  Consequence, recorded here so it cannot be lost between stages: any certified
+  claim resting on theta above t0 rests on an unproven constant, and closing O1
+  means transcribing Gabcke's explicit per-term critical-line constants. A
+  Stirling sector bound will not do it; the sector constants at these orders far
+  exceed 4.
+- Note the sub-t0 path does NOT inherit this. D8 carries no safety factor
+  anywhere: its remainder is the Stieltjes bound and its rounding term is
+  counted.
+
+## Next action
+
+Rev 6 complete. Stage 4 (split row 4, EM path) is "awaiting review": all four
+definition-of-done items are backed by green tests in the default suite.
+
+Stage 4b has not begun and must not begin without the literal reply
+"approved, continue".
