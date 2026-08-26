@@ -1,5 +1,5 @@
 diff --git a/core/src/theta.cpp b/core/src/theta.cpp
-index ff783fc..74ff0a7 100644
+index 839323a..b750ef2 100644
 --- a/core/src/theta.cpp
 +++ b/core/src/theta.cpp
 @@ -82,9 +82,10 @@ void stirling_coeff(unsigned n, mpfr_ptr out, mpfr_prec_t p) {
@@ -15,10 +15,10 @@ index ff783fc..74ff0a7 100644
  }
  
  Ball theta_subt0(double t, mpfr_prec_t prec) {
-@@ -108,10 +109,8 @@ Ball theta_subt0(double t, mpfr_prec_t prec) {
-   // Sector guard. The remainder constant below is only validated for
-   // |arg w| <= pi/4; outside it the bound is not a bound. Checked rather than
-   // assumed (docs/gate/ATTACKS.md row 21).
+@@ -112,10 +113,8 @@ Ball theta_subt0(double t, mpfr_prec_t prec) {
+   // was numerically validated over. An earlier draft of MATHS.md D8.4 claimed
+   // the bound fails outside the sector; row 21 measured that claim and it was
+   // false. See D8.4.
 -  if (!(w_im <= w_re)) {
 -    throw std::logic_error(
 -        "theta sub-t0: shift left w outside the validated Stirling sector");
