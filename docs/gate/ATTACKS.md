@@ -70,8 +70,8 @@ Field conventions:
 
 Baseline column: outcome measured at 33615d4, before the rev 5 repairs.
 Rev 5 column: measured at the rev 5 gate battery on 2026-08-24 by hand.
-Rev 6 column: measured by tools/gate_battery.sh at commit 4757a68 on
-Darwin 25.6.0 arm64, Apple clang 17.0.0, cmake 4.4.0. 15 rows, 15 PASS, tree
+Rev 6 column: measured by tools/gate_battery.sh at commit 9619804 on
+Darwin 25.6.0 arm64, Apple clang 17.0.0, cmake 4.4.0. 24 rows, 24 PASS, tree
 diff-clean after every row. The script's verbatim output is the gate evidence
 and it is what the CI leg "gate-battery" reruns on every push to main.
 
@@ -79,7 +79,7 @@ and it is what the CI leg "gate-battery" reruns on every push to main.
 |---|---|---|---|---|---|---|---|---|
 | 1 | radius.hpp round_up_positive sticky bump removed | 01-radius-sticky.patch | - | $B/core/test_radius | 1 | DETECTED (exit 1) | DETECTED (exit 1, radius_exact) | DETECTED (exit 1) |
 | 2 | theta.cpp truncation term x0.5 | 02-theta-truncation-half.patch | - | $B/core/test_theta | 1 | DETECTED (exit 1, via L3) | DETECTED (exit 1, via L3) | DETECTED (exit 1) |
-| 3 | Bernoulli numerator corrupted in the committed tripwire table | 03-bernoulli-corrupt.patch | - | $B/core/test_theta | 1 | UNDETECTED (exit 0) | UNDETECTED (exit 0), accepted | UNDETECTED (exit 0), accepted; row goes live at rev 6, see below |
+| 3 | Bernoulli numerator corrupted in the committed tripwire table | 03-bernoulli-corrupt.patch | - | $B/core/test_theta | 1 | UNDETECTED (exit 0) | UNDETECTED (exit 0), accepted | DETECTED (exit 1, test_theta) after the duplicate table was removed |
 | 4 | cball mul radius x0.9 | 04-cball-mul-radius-0.9.patch | - | $B/core/test_cball | 1 | UNDETECTED (exit 0) | DETECTED (exit 1) | DETECTED (exit 1) |
 | 5 | cball mul radius x0.5 | 05-cball-mul-radius-0.5.patch | - | $B/core/test_cball | 1 | UNDETECTED (exit 0) | DETECTED (exit 1) | DETECTED (exit 1) |
 | 6 | cball mul radius x0.25 | 06-cball-mul-radius-0.25.patch | - | $B/core/test_cball | 1 | DETECTED (exit 1) | DETECTED (exit 1) | DETECTED (exit 1) |
@@ -92,15 +92,15 @@ and it is what the CI leg "gate-battery" reruns on every push to main.
 | 13 | Ball::parse("1e-320") claims radius 0 | 13-parse-false-exact.patch | - | $B/core/test_ball | 1 | UNDETECTED (no such test) | DETECTED (exit 1, test_ball) | DETECTED (exit 1) |
 | 14 | Ffix::mul(2^32, 2^32) wraps to raw 0 | 14-ffix-mul-wrap.patch | - | $B/core/test_ffix | 1 | UNDETECTED (no such test) | DETECTED (exit 1, test_ffix) | DETECTED (exit 1) |
 | 15 | environment read in core/src outside sabotage.cpp | 15-getenv-injected.patch | (no build) | tools/check_no_env_knobs.sh | 1 | n/a (no guard existed) | GUARD FAILS as required | GUARD FAILS as required (exit 1) |
-| 16 | EM remainder: Backlund factor abs(s+2M+1)/(sigma+2M+1) replaced by 1 | 16-backlund-factor-one.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (no EM path) | n/a (no EM path) | pre-registered |
-| 17 | EM Dirichlet sum truncated below the pinned N, radius left unchanged | 17-em-short-sum.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (no EM path) | n/a (no EM path) | pre-registered |
-| 18 | Z assembly: cos and sin swapped (theta sign convention flipped) | 18-z-sincos-swap.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (no EM path) | n/a (no EM path) | pre-registered |
-| 19 | L-C removed: the imaginary-part-contains-zero assertion deleted from test_zeta | 19-lc-disabled.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 0 | n/a (no EM path) | n/a (no EM path) | pre-registered |
-| 20 | L-B gamma_1 bracket endpoints swapped in test_zeta | 20-lb-bracket-swap.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (no EM path) | n/a (no EM path) | pre-registered |
-| 21 | Stirling sector guard removed: m no longer raised to keep arg w inside pi/4 | 21-stirling-sector.patch | - | $B/core/test_theta | 1 | n/a (no sub-t0 path) | n/a (no sub-t0 path) | pre-registered |
-| 22 | Bernoulli recurrence index shifted by one | 22-bernoulli-index.patch | - | $B/core/test_theta | 1 | n/a (no recurrence) | n/a (no recurrence) | pre-registered |
-| 23 | sub-t0 golden corpus, one digit flipped | 23-subt0-golden-digit.patch | - | $B/core/test_theta | 1 | n/a (no corpus) | n/a (no corpus) | pre-registered |
-| 24 | Ffix error composition wraps instead of saturating | 24-ffix-err-wrap.patch | - | $B/core/test_ffix | 1 | n/a (no such test) | n/a (no such test) | pre-registered |
+| 16 | EM remainder: Backlund factor abs(s+2M+1)/(sigma+2M+1) replaced by 1 | 16-backlund-factor-one.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (no EM path) | n/a (no EM path) | DETECTED (exit 1, L-D) |
+| 17 | EM Dirichlet sum truncated below the pinned N, radius left unchanged | 17-em-short-sum.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (no EM path) | n/a (no EM path) | DETECTED (exit 1, L-A) |
+| 18 | Z assembly: cos and sin swapped (theta sign convention flipped) | 18-z-sincos-swap.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (no EM path) | n/a (no EM path) | DETECTED (exit 1) |
+| 19 | L-C removed: the imaginary-part-contains-zero assertion deleted from test_zeta | 19-lc-disabled.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 0 | n/a (no EM path) | n/a (no EM path) | UNDETECTED (exit 0), as pre-registered |
+| 20 | L-B gamma_1 bracket endpoints swapped in test_zeta | 20-lb-bracket-swap.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (no EM path) | n/a (no EM path) | DETECTED (exit 1, L-B) |
+| 21 | Stirling sector guard removed: m no longer raised to keep arg w inside pi/4 | 21-stirling-sector.patch | - | $B/core/test_theta | 1 | n/a (no sub-t0 path) | n/a (no sub-t0 path) | DETECTED (exit 1, L6) after the layer L6 was added; see below |
+| 22 | Bernoulli recurrence index shifted by one | 22-bernoulli-index.patch | - | $B/core/test_theta | 1 | n/a (no recurrence) | n/a (no recurrence) | DETECTED (exit 1, L5) |
+| 23 | sub-t0 golden corpus, one digit flipped | 23-subt0-golden-digit.patch | - | $B/core/test_theta | 1 | n/a (no corpus) | n/a (no corpus) | DETECTED (exit 1, L2b) |
+| 24 | Ffix error composition wraps instead of saturating | 24-ffix-err-wrap.patch | - | $B/core/test_ffix | 1 | n/a (no such test) | n/a (no such test) | DETECTED (exit 1) |
 
 ## Accepted blind spots
 
@@ -118,4 +118,38 @@ Recorded rather than hidden. Each names the stage that closes it.
 - Row 2 detects only through L3 policy equality, an independent transcription
   of the same derivation, not through an enclosure layer. A radius that is
   wrong in both production and transcription would survive. Closed by MATHS.md
-  O1 and, if it is built, a live enclosure layer in Phase 2.
+  O1 and, if it is built, a live enclosure layer above t0. NOTE: the sub-t0
+  path does NOT share this blind spot. Its remainder is bounded by L2b against
+  a corpus and by L4 against an independent derivation, and it carries no
+  safety factor to be wrong about.
+- Row 19 (L-C removal), measured UNDETECTED exactly as pre-registered, and
+  therefore an accepted, documented dependency rather than a surprise. Nothing
+  else in the suite covers the imaginary-cancellation invariant
+  Im[e^{i theta} zeta] = 0: L-A compares only the real part against the oracle,
+  and L-D reads only the tail bound. L-C is load-bearing and single. It is kept
+  single deliberately, because the check is free and a second layer testing the
+  same identity would add no independence, but a future revision that deletes
+  it would silently give up the only check on theta's branch, on the sign
+  convention of the assembly and on the zeta ball at once. Owning stage: 4b,
+  where the RS path gives the same identity a second, genuinely independent
+  evaluation.
+
+## What the pre-registered rows actually found
+
+Rows 16 to 24 were written before the code they attack. Two of them came back
+UNDETECTED against code that turned out to be correct, and both were worth more
+than the rows that passed first time:
+
+- Row 3, re-measured after the EM path landed, showed that B4 had transcribed
+  the Bernoulli table a SECOND time, and that the copy the row mutates had
+  become dead. One transcription was deleted.
+- Row 21 showed that MATHS.md D8.4's claim, that the Stieltjes bound fails
+  outside the pi/4 sector, was false: the bound holds throughout Re w > 0,
+  measured to a worst attained/bound ratio of 0.709737 out to arg w/pi = 0.499.
+  D8.4 is corrected. The row was NOT weakened to match: the sector is a
+  tightness invariant worth 187x of certified radius at t = 199.999, so
+  test_theta layer L6 now asserts it directly and the row detects.
+- Row 24 came back UNDETECTED twice against the ffix saturation fix, because
+  the regression shipped with that fix asserted monotonicity, which a wrapped
+  product can satisfy. It was replaced by exact policy equality in GMP integers
+  with a constructed boundary family that makes a wrap land on zero.
