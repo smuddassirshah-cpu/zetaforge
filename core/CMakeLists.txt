@@ -1,6 +1,6 @@
 option(ZF_SABOTAGE_HOOKS "Compile-time sabotage hooks (NEVER enable in production)" OFF)
 
-add_library(zetaforge_core STATIC src/ball.cpp src/em_eval.cpp src/theta.cpp)
+add_library(zetaforge_core STATIC src/ball.cpp src/bernoulli.cpp src/em_eval.cpp src/theta.cpp)
 target_include_directories(zetaforge_core PUBLIC include)
 target_compile_features(zetaforge_core PUBLIC cxx_std_23)
 target_link_libraries(zetaforge_core PUBLIC PkgConfig::MPFR PkgConfig::GMP)
@@ -66,9 +66,11 @@ if(ZF_ARM_STAGE4)
 endif()
 
 add_executable(test_theta tests/test_theta.cpp)
-target_link_libraries(test_theta PRIVATE zetaforge_core)
+target_link_libraries(test_theta PRIVATE zetaforge_core ${FLINT_LIBRARY})
+target_include_directories(test_theta PRIVATE ${FLINT_INCLUDE_DIR})
 target_compile_definitions(test_theta PRIVATE
-  THETA_GOLDEN_CSV="${CMAKE_SOURCE_DIR}/docs/golden/theta_golden.csv")
+  THETA_GOLDEN_CSV="${CMAKE_SOURCE_DIR}/docs/golden/theta_golden.csv"
+  THETA_GOLDEN_SUBT0_CSV="${CMAKE_SOURCE_DIR}/docs/golden/theta_golden_subt0.csv")
 
 add_test(NAME theta COMMAND test_theta)
 
