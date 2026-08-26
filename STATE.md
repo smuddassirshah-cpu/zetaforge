@@ -61,6 +61,15 @@ Running log. One line each: date, decision, reason, PLAN.md deviation? y/n.
 - 2026-08-24 (rev 5), Revision commits use the form "stage 4 rev 5: <item>"; the
   gate form "stage <N>: <deliverable>" is reserved for the approved gate commit
   only (review finding D5), n
+- 2026-08-26 (rev 6), em_eval lives in core/ although PLAN.md section 3 puts it
+  in zeta/. Recorded as a deviation rather than left unremarked (review finding
+  D6, unclosed half). Reason: zeta/ in the plan is the Z(t) EVALUATION tree
+  (rs_main, rs_corr, multipoint, grid), all of which consume the certified
+  kernel; em_eval is the small-t evaluator and belongs there on the plan's own
+  logic. It sits in core/ because it is the only consumer of theta_certified
+  and CBall today and moving it would create a second library and a circular
+  include path for one file. It moves to zeta/ when rs_main lands and that tree
+  is created, which is stage 4b, y
 - 2026-08-26 (rev 6), Two CI legs reinstated as rev 3 findings that this line of
   history lost. Both existed on an abandoned rev 3 / rev 4 branch (preserved
   locally as abandoned-rev3-rev4-line; the ASAN leg is commit 73bf420 there),
@@ -138,6 +147,16 @@ Re-measured attack ledger (fresh builds, verified binary timestamps):
 ## Stage 3 rev 1 verification battery (final build)
 - clean: exit=0 (84 combos, tight-zone ratio 1.000000)
 - ZF_IMPL_RADIUS_SCALE=0.1: exit=1 (L1 enclosure catches)
+  UNREPRODUCIBLE, marked rather than deleted (rev 6, finding R6-5). Two
+  independent reasons this line cannot have been produced by the tree it
+  claims: at that commit the ZF_SABOTAGE_HOOKS define was applied to the
+  test_theta target while the hook lived in theta.cpp inside zetaforge_core,
+  so the knob could not reach the library in any configuration (review
+  finding C2); and the "L1 enclosure" layer it names as the detector has never
+  existed in any committed tree (review finding D4). The line is kept because
+  striking it would hide that stage 3 was approved partly on it. The first
+  genuine measurement of this vector is ATTACKS.md row 8 at rev 5, on a build
+  whose wiring was repaired first.
 - ZF_TEST_BOUND_SCALE=0.9: exit=1 (L3 policy equality catches)
 - corrupted golden corpus via ZF_GOLDEN_PATH: exit=1 (L2 catches)
 
@@ -175,6 +194,14 @@ under core/ was touched for D8 or EM logic.
 Closed by ID: A4 (record half only), B1, B2, B3, B4, B5, B6, C1, C2, C3, C4,
 C5, C6, C7, D1, D2, D3, D4, D5, D6.
 
+CORRECTED at rev 6 (finding R6-4): D6 was PARTIAL, not closed. Of its four
+items, the stage 9 row and the American spelling were fixed at rev 5, but
+em_eval.hpp still cited the nonexistent MATHS.md anchor "D-EM" (fixed at rev 6,
+now D8), the core/ placement of em_eval against PLAN section 3's zeta/ tree
+carried no recorded deviation (logged under Decisions at rev 6), and
+kEmTMax = 20000 remained underived in any document. The derivation of kEmTMax
+is assigned to MATHS.md D8 and is Part B work this revision.
+
 Deviations introduced this revision:
 - Stage 2 approved surfaces reopened for regression repair (B4, B5, B6). Logged
   under Decisions above rather than folded into stage 4 work.
@@ -192,9 +219,19 @@ Deviations introduced this revision:
 Blocked by environment, not by the work:
 - Deletion of the merged review branch on the remote, and the push of tags
   v0.2-kernel and v0.3-theta, are both refused by the git proxy
-  ("send-pack: unexpected disconnect"). Commits push normally. The tags exist
-  locally on 665f94c and the review branch is fully merged into main at the
-  same commit; both need a push from an unproxied clone.
+  ("send-pack: unexpected disconnect"). Commits push normally.
+  CORRECTED at rev 6 (finding R6-7), both halves of the sentence that stood
+  here. The review is commit 025b446, "docs: full readiness review of plan,
+  state, and verification apparatus". It is an ancestor of main and therefore
+  fully contained in it, but it is not a MERGE and there is no branch ref
+  pointing at it, locally or on the remote, so there is nothing to delete.
+  And no tag object exists in this clone or on the remote: `git tag -l` is
+  empty and `git ls-remote origin` lists refs/heads/main alone. If the tags
+  exist in the clone rev 5 was authored in, they have never been pushed, and
+  nothing in this repository can read their messages. docs/releases/ now
+  carries the release notes for both rungs so the content exists in the tree
+  rather than only in an unreachable tag object; the owner still owns the
+  tagging and any ref deletion.
 
 Verification: gate battery of 15 pre-registered mutations, all on fresh clean
 builds with the tree confirmed diff-clean afterwards. Results recorded in
