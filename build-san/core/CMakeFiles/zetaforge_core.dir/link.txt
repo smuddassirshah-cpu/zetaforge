@@ -1,2 +1,0 @@
-/usr/bin/ar qc libzetaforge_core.a CMakeFiles/zetaforge_core.dir/src/ball.cpp.o CMakeFiles/zetaforge_core.dir/src/em_eval.cpp.o CMakeFiles/zetaforge_core.dir/src/theta.cpp.o
-/usr/bin/ranlib libzetaforge_core.a

@@ -7,7 +7,10 @@ data/raw/
 data/release/
 
 # build artefacts
-build/
+# build*/ not build/: the sanitiser, sabotage and gate-battery configurations
+# use sibling directories, and 173 build-san/ files reached a commit at rev 6
+# through a careless `git add -A` before this pattern existed.
+build*/
 target/
 dist/
 __pycache__/
