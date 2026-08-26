@@ -8,6 +8,8 @@
 #include <limits>
 #include <stdexcept>
 
+#include <gmp.h>
+
 #include "check.hpp"
 #include "zetaforge/ffix.hpp"
 
@@ -200,46 +202,111 @@ int main() {
     ZF_CHECK(threw);
   }
 
-  // ---- error composition must saturate, never wrap (rev 6) ---------------
+  // ---- error composition: exact policy equality (rev 6) ------------------
   // Found by the sanitiser leg: the composition ran in signed __int128 and
-  // UBSan caught a signed overflow on the ea * words term after 32 chained
-  // multiplications. Signed overflow is undefined and the observed behaviour
-  // was a wrap, so the tracked bound became SMALLER than the truth: the one
-  // thing this type promises never to do (stage 2 attack list, item 6).
-  // inflate_err compounded it by detecting its own overflow after the fact and
-  // falling back to the unscaled input, the same post-hoc pattern review
-  // finding B5 rejected in the value path.
+  // overflowed, which is undefined and in practice wraps, so the tracked bound
+  // became SMALLER than the truth. That is the one thing this type promises
+  // never to do (stage 2 attack list, item 6).
+  //
+  // A monotonicity assertion is NOT enough, and ATTACKS.md row 19-style
+  // pre-registration is what showed it: with saturation removed from sat_mul
+  // the bound still rises step to step, because the surrounding saturating
+  // adds hide a wrapped product. The layer therefore transcribes the whole
+  // composition INDEPENDENTLY in exact GMP integers and asserts equality with
+  // min(exact, kErrMax). A wrap anywhere on the path breaks it.
   {
-    Ffix v = Ffix::from_raw(static_cast<Ffix::raw_t>(0x123456789ABCDEFull), 1);
-    Ffix::raw_t prev = v.err();
-    bool monotone = true;
-    bool saturated = false;
-    for (int i = 0; i < 64 && !saturated; ++i) {
-      // Squaring drives the magnitude towards the range limit, so the run
-      // ends either at the value guard or at error saturation; both are
-      // honest outcomes, a shrinking bound is not.
-      try {
-        v = v.mul(v);
-      } catch (const std::overflow_error&) {
-        break;
-      }
-      if (v.err() < prev) {
-        monotone = false;
-        std::printf("FFIX_ERR_SHRANK step=%d\n", i);
-      }
-      prev = v.err();
-      saturated = v.err_saturated();
-    }
-    ZF_CHECK(monotone);
-    ZF_CHECK(prev >= 0);
-    std::printf("FFIX_ERR_MONOTONE %d saturated=%d\n",
-                static_cast<int>(monotone), static_cast<int>(saturated));
+    // Exact composition of Ffix::mul's error policy, in GMP integers.
+    auto exact_mul_err = [](Ffix::raw_t ra, Ffix::raw_t ea_in,
+                            Ffix::raw_t rb, Ffix::raw_t eb_in, mpz_t out) {
+      auto absu = [](Ffix::raw_t v) {
+        return v < 0 ? (zetaforge::u128)(-v) : (zetaforge::u128)v;
+      };
+      auto set_u128 = [](mpz_t z, zetaforge::u128 v) {
+        mpz_set_ui(z, static_cast<unsigned long>(v >> 64));
+        mpz_mul_2exp(z, z, 64);
+        mpz_t lo;
+        mpz_init(lo);
+        mpz_set_ui(lo, static_cast<unsigned long>(static_cast<uint64_t>(v)));
+        mpz_add(z, z, lo);
+        mpz_clear(lo);
+      };
+      const zetaforge::u128 am = absu(ra), bm = absu(rb);
+      mpz_t A, B, WA, WB, ea, eb, t;
+      mpz_inits(A, B, WA, WB, ea, eb, t, nullptr);
+      set_u128(A, static_cast<zetaforge::u128>(ea_in));
+      set_u128(B, static_cast<zetaforge::u128>(eb_in));
+      set_u128(WA, am >> 32);          // floor(am / 2^32)
+      set_u128(WB, bm >> 32);
+      // ea = ea_in == 0 ? 0 : ea_in * ((am>>32) + 2)
+      mpz_add_ui(t, WA, 2);
+      mpz_mul(ea, A, t);
+      mpz_add_ui(t, WB, 2);
+      mpz_mul(eb, B, t);
+      // e = ea + eb + ea*((bm>>32)+1) + eb*((am>>32)+1) + (lost?1:0) + 1
+      mpz_add(out, ea, eb);
+      mpz_add_ui(t, WB, 1);
+      mpz_mul(t, ea, t);
+      mpz_add(out, out, t);
+      mpz_add_ui(t, WA, 1);
+      mpz_mul(t, eb, t);
+      mpz_add(out, out, t);
+      const uint64_t al = static_cast<uint64_t>(am);
+      const uint64_t bl = static_cast<uint64_t>(bm);
+      const uint64_t lost = static_cast<uint64_t>((zetaforge::u128)al * bl);
+      mpz_add_ui(out, out, lost != 0 ? 1u : 0u);
+      mpz_add_ui(out, out, 1u);
+      mpz_clears(A, B, WA, WB, ea, eb, t, nullptr);
+    };
 
-    // A saturated bound stays saturated through further composition.
-    if (saturated) {
-      const Ffix w = v.add(Ffix::from_raw(1, 1));
-      ZF_CHECK(w.err_saturated());
+    mpz_t expect, cap, claimed;
+    mpz_inits(expect, cap, claimed, nullptr);
+    mpz_ui_pow_ui(cap, 2, 127);
+    mpz_sub_ui(cap, cap, 1);                       // kErrMax = 2^127 - 1
+
+    struct Case { int ra_bits, rb_bits, ea_bits, eb_bits; };
+    const Case cases[] = {
+        {8, 8, 0, 0},    {40, 40, 4, 4},   {60, 60, 20, 20},
+        {60, 100, 125, 3}, {100, 60, 3, 125}, {100, 100, 100, 100},
+        {119, 8, 126, 126}, {60, 100, 126, 126}, {32, 32, 64, 64},
+    };
+    int equality_failures = 0, saturating = 0;
+    for (const Case& c : cases) {
+      const Ffix::raw_t ra = static_cast<Ffix::raw_t>(1) << c.ra_bits;
+      const Ffix::raw_t rb = static_cast<Ffix::raw_t>(1) << c.rb_bits;
+      const Ffix::raw_t ea = c.ea_bits == 0
+                                 ? 0
+                                 : (static_cast<Ffix::raw_t>(1) << c.ea_bits);
+      const Ffix::raw_t eb = c.eb_bits == 0
+                                 ? 0
+                                 : (static_cast<Ffix::raw_t>(1) << c.eb_bits);
+      Ffix out;
+      try {
+        out = Ffix::from_raw(ra, ea).mul(Ffix::from_raw(rb, eb));
+      } catch (const std::overflow_error&) {
+        continue;   // value out of range: not this layer's subject
+      }
+      exact_mul_err(ra, ea, rb, eb, expect);
+      if (mpz_cmp(expect, cap) > 0) {
+        mpz_set(expect, cap);          // policy: saturate at kErrMax
+        ++saturating;
+      }
+      const zetaforge::u128 got = static_cast<zetaforge::u128>(out.err());
+      mpz_set_ui(claimed, static_cast<unsigned long>(got >> 64));
+      mpz_mul_2exp(claimed, claimed, 64);
+      mpz_add_ui(claimed, claimed, static_cast<unsigned long>(
+                                       static_cast<uint64_t>(got)));
+      if (mpz_cmp(claimed, expect) != 0) {
+        ++equality_failures;
+        std::printf("FFIX_ERR_POLICY ra=2^%d rb=2^%d ea=2^%d eb=2^%d\n",
+                    c.ra_bits, c.rb_bits, c.ea_bits, c.eb_bits);
+        std::printf("  claimed=%s\n", mpz_get_str(nullptr, 10, claimed));
+        std::printf("  expect =%s\n", mpz_get_str(nullptr, 10, expect));
+      }
     }
+    ZF_CHECK(equality_failures == 0);
+    std::printf("FFIX_ERR_POLICY_EQUALITY failures=%d saturating_cases=%d\n",
+                equality_failures, saturating);
+    mpz_clears(expect, cap, claimed, nullptr);
 
     // A negative error count is not a bound and is refused at the boundary.
     bool refused = false;
