@@ -12,10 +12,10 @@ namespace {
 
 std::vector<uint64_t> schoolbook(const std::vector<uint64_t>& a,
                                  const std::vector<uint64_t>& b, size_t out_len) {
-  std::vector<unsigned __int128> acc(out_len, 0);
+  std::vector<zetaforge::u128> acc(out_len, 0);
   for (size_t i = 0; i < a.size(); ++i) {
     for (size_t j = 0; j < b.size(); ++j) {
-      acc[i + j] += static_cast<unsigned __int128>(a[i]) * b[j];
+      acc[i + j] += static_cast<zetaforge::u128>(a[i]) * b[j];
     }
   }
   std::vector<uint64_t> out(out_len);
@@ -59,9 +59,9 @@ int main() {
     const std::vector<uint64_t> cyc = convolve_cyclic(a, b);
     // wrap the linear result manually (schoolbook with out_len=n would
     // overrun: full products reach index 2n-2)
-    std::vector<unsigned __int128> acc(n, 0);
+    std::vector<zetaforge::u128> acc(n, 0);
     for (size_t i = 0; i < n; ++i)
-      for (size_t j = 0; j < n; ++j) acc[(i + j) % n] += static_cast<unsigned __int128>(a[i]) * b[j];
+      for (size_t j = 0; j < n; ++j) acc[(i + j) % n] += static_cast<zetaforge::u128>(a[i]) * b[j];
     bool ok = true;
     for (size_t i = 0; i < n; ++i)
       if (cyc[i] != static_cast<uint64_t>(acc[i] % 998244353ULL)) ok = false;

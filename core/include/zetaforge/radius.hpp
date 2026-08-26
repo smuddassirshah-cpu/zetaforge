@@ -15,7 +15,7 @@
 // therefore now compute exact integer decompositions directly; there are no
 // residuals anywhere on this path.
 //
-// Portability: unsigned __int128 (GCC/Clang), consistent with ntt.hpp and
+// Portability: u128 (GCC/Clang), consistent with ntt.hpp and
 // ffix.hpp. Soundness depends on round-to-nearest being irrelevant here --
 // these paths never consult the ambient rounding mode.
 
@@ -26,6 +26,15 @@
 #include <utility>
 
 namespace zetaforge {
+
+// ISO C++ has no 128-bit integer type, so GCC's -Wpedantic diagnoses every
+// spelling of i128 and -Werror then fails the build. __extension__
+// suppresses the diagnostic at this single declaration site; uses of the
+// typedef names are not re-diagnosed. Dropping -Wpedantic instead would give
+// up every other portability diagnostic in order to silence one extension we
+// have already decided to depend on.
+__extension__ typedef unsigned __int128 u128;
+__extension__ typedef __int128 i128;
 
 namespace radius_detail {
 
@@ -49,7 +58,7 @@ inline void decompose(double x, uint64_t& mant, int& exp) {
 // Smallest finite non-negative double >= M * 2^E for M > 0.
 // Overflow saturates to INFINITY; results below denorm_min floor to
 // denorm_min (never a false-exact zero).
-inline double round_up_positive(unsigned __int128 M, int E,
+inline double round_up_positive(u128 M, int E,
                                 bool sticky_in = false) {
   bool sticky = sticky_in;
   if (M == 0 && !sticky) {
@@ -60,24 +69,24 @@ inline double round_up_positive(unsigned __int128 M, int E,
   }
   int bl = 0;
   {
-    unsigned __int128 t = M;
+    u128 t = M;
     while (t != 0) {
       t >>= 1;
       ++bl;
     }
   }
-  unsigned __int128 q;
+  u128 q;
   if (bl > 53) {
     const int s = bl - 53;
     q = M >> s;
-    sticky = sticky || ((M & (((unsigned __int128)1 << s) - 1)) != 0);
+    sticky = sticky || ((M & (((u128)1 << s) - 1)) != 0);
     E += s;
   } else {
     q = M << (53 - bl);
     E -= 53 - bl;
   }
   if (sticky) ++q;
-  if (q == ((unsigned __int128)1 << 53)) {
+  if (q == ((u128)1 << 53)) {
     q >>= 1;
     ++E;
   }
@@ -89,7 +98,7 @@ inline double round_up_positive(unsigned __int128 M, int E,
   if (fe >= -1022) {
     const uint64_t bits =
         (static_cast<uint64_t>(fe + 1023) << 52) |
-        static_cast<uint64_t>(q - ((unsigned __int128)1 << 52));
+        static_cast<uint64_t>(q - ((u128)1 << 52));
     double out = 0;
     std::memcpy(&out, &bits, sizeof(out));
     return out;
@@ -100,15 +109,15 @@ inline double round_up_positive(unsigned __int128 M, int E,
   // previously re-read pre-normalisation M against the mutated E, returning
   // half-truths across the entire subnormal range.
   const int sh = -(E + 1074);
-  unsigned __int128 units;
+  u128 units;
   if (sh > 127) {
     // q < 2^53 <= 2^sh: the value is nonzero but rounds up to one unit.
     units = 1;
   } else {
-    const unsigned __int128 d = (unsigned __int128)1 << sh;
+    const u128 d = (u128)1 << sh;
     units = (q + d - 1) / d;
   }
-  if (units >= ((unsigned __int128)1 << 52)) {
+  if (units >= ((u128)1 << 52)) {
     return INFINITY;  // cannot occur from fe < -1022; defensive escalate
   }
   const double out = std::ldexp(static_cast<double>(units), -1074);
@@ -134,13 +143,13 @@ inline double up_add(double a, double b) noexcept {
     std::swap(ea, eb);
   }
   const int shift = ea - eb;
-  unsigned __int128 sum = static_cast<unsigned __int128>(ma);
+  u128 sum = static_cast<u128>(ma);
   bool sticky = false;
   if (shift <= 127) {
     if (shift > 0) {
       // shift may exceed 64: mb must be widened before shifting or masking
-      const unsigned __int128 mbw = static_cast<unsigned __int128>(mb);
-      sticky = (mbw & (((unsigned __int128)1 << shift) - 1)) != 0;
+      const u128 mbw = static_cast<u128>(mb);
+      sticky = (mbw & (((u128)1 << shift) - 1)) != 0;
       sum += mbw >> shift;
     } else {
       sum += mb;
@@ -165,7 +174,7 @@ inline double up_mul(double a, double b) noexcept {
   radius_detail::decompose(a, ma, ea);
   radius_detail::decompose(b, mb, eb);
   return radius_detail::round_up_positive(
-      static_cast<unsigned __int128>(ma) * mb, ea + eb);
+      static_cast<u128>(ma) * mb, ea + eb);
 }
 
 // One ulp upward; maps zero to the smallest positive subnormal so an inexact

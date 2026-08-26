@@ -1,14 +1,14 @@
 diff --git a/core/include/zetaforge/ffix.hpp b/core/include/zetaforge/ffix.hpp
-index 3a58bda..edfc79d 100644
+index c13fcc8..e965998 100644
 --- a/core/include/zetaforge/ffix.hpp
 +++ b/core/include/zetaforge/ffix.hpp
-@@ -103,9 +103,6 @@ class Ffix {
+@@ -105,9 +105,6 @@ class Ffix {
      // the shift exact (top < 2^63 gives top<<64 < 2^127), after which the
      // assembled range test below is itself exact. mid < 2^121 and low >> 64 <
      // 2^64 under the same operand contract, so the sum cannot wrap either.
--    if (!(top < (unsigned __int128)1 << 63)) {
+-    if (!(top < (u128)1 << 63)) {
 -      throw std::overflow_error("ffix mul overflow");
 -    }
-     unsigned __int128 res = top << 64;
+     u128 res = top << 64;
      res += mid;
-     res += static_cast<unsigned __int128>(low >> 64);
+     res += static_cast<u128>(low >> 64);

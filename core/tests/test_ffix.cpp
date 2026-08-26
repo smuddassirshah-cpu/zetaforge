@@ -16,27 +16,23 @@ using zetaforge::Ffix;
 namespace {
 
 struct U256 {
-  unsigned __int128 hi;
-  unsigned __int128 lo;
+  zetaforge::u128 hi;
+  zetaforge::u128 lo;
 };
 
-U256 mul_u128(unsigned __int128 a, unsigned __int128 b) {
+U256 mul_u128(zetaforge::u128 a, zetaforge::u128 b) {
   const uint64_t ah = static_cast<uint64_t>(a >> 64);
   const uint64_t al = static_cast<uint64_t>(a);
   const uint64_t bh = static_cast<uint64_t>(b >> 64);
   const uint64_t bl = static_cast<uint64_t>(b);
-  const unsigned __int128 ll = static_cast<unsigned __int128>(al) * bl;
-  unsigned __int128 mid = static_cast<unsigned __int128>(al) * bh;
-  mid += static_cast<unsigned __int128>(ah) * bl;
-  const unsigned __int128 hh = static_cast<unsigned __int128>(ah) * bh;
+  const zetaforge::u128 ll = static_cast<zetaforge::u128>(al) * bl;
+  zetaforge::u128 mid = static_cast<zetaforge::u128>(al) * bh;
+  mid += static_cast<zetaforge::u128>(ah) * bl;
+  const zetaforge::u128 hh = static_cast<zetaforge::u128>(ah) * bh;
   U256 out;
   out.lo = ll + (mid << 64);
   out.hi = hh + (mid >> 64) + (out.lo < ll ? 1 : 0);
   return out;
-}
-
-unsigned __int128 abs128(Ffix::raw_t v) {
-  return v < 0 ? static_cast<unsigned __int128>(-v) : static_cast<unsigned __int128>(v);
 }
 
 }  // namespace
@@ -61,20 +57,20 @@ int main() {
   constexpr int kTrials = 5000;
   for (int t = 0; t < kTrials; ++t) {
     // Generator (review finding: the previous one was vacuous). It read
-    //   static_cast<unsigned __int128>(rng.next()) >> 28
+    //   static_cast<zetaforge::u128>(rng.next()) >> 28
     // with a comment claiming "< 2^100": the cast happens BEFORE the shift, so
     // a 64-bit draw was shifted down to at most 2^36 and no operand ever
     // reached 2^64, let alone the 2^120 contract limit. The overflow path was
     // therefore never exercised at all. Now the magnitude is assembled at full
     // 128-bit width and truncated to a random bit-width across the whole legal
     // range, so operands well above 2^64 and products beyond 2^191 both occur.
-    unsigned __int128 wide = static_cast<unsigned __int128>(rng.next()) << 64;
-    wide |= static_cast<unsigned __int128>(rng.next());
+    zetaforge::u128 wide = static_cast<zetaforge::u128>(rng.next()) << 64;
+    wide |= static_cast<zetaforge::u128>(rng.next());
     const int width_a = 1 + static_cast<int>(rng.next() % 120);
     const int width_b = 1 + static_cast<int>(rng.next() % 120);
     const auto mag_a = wide >> (128 - width_a);
-    unsigned __int128 wide2 = static_cast<unsigned __int128>(rng.next()) << 64;
-    wide2 |= static_cast<unsigned __int128>(rng.next());
+    zetaforge::u128 wide2 = static_cast<zetaforge::u128>(rng.next()) << 64;
+    wide2 |= static_cast<zetaforge::u128>(rng.next());
     const auto mag_b = wide2 >> (128 - width_b);
     const bool neg_a = rng.next() & 1;
     const bool neg_b = rng.next() & 1;
@@ -110,14 +106,14 @@ int main() {
     }
 
     const Ffix prod = fa.mul(fb);
-    const unsigned __int128 q_floor = (m.hi << 64) | (m.lo >> 64);
+    const zetaforge::u128 q_floor = (m.hi << 64) | (m.lo >> 64);
     const uint64_t frac = static_cast<uint64_t>(m.lo);
 
     // Magnitude result must be exactly the truncated quotient: the dropped
     // fraction is tracked in the error bound, never folded into the value.
-    const unsigned __int128 out_mag = prod.raw() < 0
-                                          ? static_cast<unsigned __int128>(-prod.raw())
-                                          : static_cast<unsigned __int128>(prod.raw());
+    const zetaforge::u128 out_mag = prod.raw() < 0
+                                          ? static_cast<zetaforge::u128>(-prod.raw())
+                                          : static_cast<zetaforge::u128>(prod.raw());
     ZF_CHECK(out_mag == q_floor);
 
     // Under-report hunt: the tracked bound must cover at least the truncation
@@ -141,8 +137,8 @@ int main() {
   // Shared-derivation audit (stage 2 rev 1): sign handling must be probed by
   // properties, not by mirroring the implementation's magnitude/sign split.
   for (int t = 0; t < 4000; ++t) {
-    const auto mag_a = static_cast<unsigned __int128>(rng.next()) >> 30;
-    const auto mag_b = static_cast<unsigned __int128>(rng.next()) >> 30;
+    const auto mag_a = static_cast<zetaforge::u128>(rng.next()) >> 30;
+    const auto mag_b = static_cast<zetaforge::u128>(rng.next()) >> 30;
     const Ffix::raw_t ra = static_cast<Ffix::raw_t>(mag_a);
     const Ffix::raw_t rb = static_cast<Ffix::raw_t>(mag_b);
     const Ffix pa = Ffix::from_raw(ra);

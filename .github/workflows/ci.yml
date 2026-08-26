@@ -39,6 +39,29 @@ jobs:
         run: |
           diff determinism-Release/determinism_Release.txt determinism-Debug/determinism_Debug.txt
 
+  # Debug plus AddressSanitizer and UndefinedBehaviorSanitizer, with recovery
+  # off so the first report is fatal rather than a line in a log nobody reads.
+  # The certified path is full of 128-bit integer arithmetic, directed rounding
+  # and raw mpfr handles; a signed overflow or a leaked mpfr_t is exactly the
+  # class of defect that never shows up as a failed assertion.
+  sanitisers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: install numeric dependencies
+        run: sudo apt-get update && sudo apt-get install -y libgmp-dev libmpfr-dev libflint-dev pkg-config
+      - name: configure
+        run: >
+          cmake -S . -B build-san -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer"
+      - name: build
+        run: cmake --build build-san --parallel
+      - name: full ctest under the sanitisers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1
+        run: ctest --test-dir build-san --output-on-failure
+
   rust:
     runs-on: ubuntu-latest
     steps:

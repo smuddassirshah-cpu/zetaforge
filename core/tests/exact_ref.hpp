@@ -30,6 +30,14 @@
 
 namespace exact_ref {
 
+// Declared here rather than taken from zetaforge/radius.hpp on purpose. The
+// independence statement above is the reason this file exists, and it must not
+// acquire a compile-time dependency on the implementation it checks, not even
+// for a typedef. __extension__ silences GCC's -Wpedantic diagnostic at the
+// declaration site; see radius.hpp for the same reasoning on the production
+// side.
+__extension__ typedef unsigned __int128 u128;
+
 constexpr double kInf = std::numeric_limits<double>::infinity();
 
 struct Decomposed {
@@ -61,7 +69,7 @@ inline Decomposed decomp(double x) {
   return d;
 }
 
-inline int bit_length(unsigned __int128 v) {
+inline int bit_length(u128 v) {
   int n = 0;
   while (v != 0) {
     v >>= 1;
@@ -70,7 +78,7 @@ inline int bit_length(unsigned __int128 v) {
   return n;
 }
 
-inline double compose(bool neg, unsigned __int128 q, int exp) {
+inline double compose(bool neg, u128 q, int exp) {
   double m = static_cast<double>(q);
   return neg ? -std::ldexp(m, exp) : std::ldexp(m, exp);
 }
@@ -88,29 +96,29 @@ inline double assemble_normal(uint64_t mant_bits, int fe) {
 
 // Smallest double >= M * 2^E for M > 0. Sticky folds lost low bits of an
 // aligned sum into the ceiling decision; pass false for bare products.
-inline double round_up_positive(unsigned __int128 M, int E, bool sticky_in = false) {
+inline double round_up_positive(u128 M, int E, bool sticky_in = false) {
   const int bl = bit_length(M);
   const int fe = E + bl - 1;          // fact 1: exact containing binade
   if (fe > 1023) return kInf;
 
   // Quantised grid value: v / ulp = M * 2^(E - (fe - 52)), ulp = 2^(fe-52)
   const int d = fe - 52 - E;          // right-shift applied to M, >= 0 here
-  unsigned __int128 q;
+  u128 q;
   bool sticky = sticky_in;
   if (d <= 0) {
     // v is an exact multiple of ulp already (M fits the 53-bit grid).
     q = M << (-d);
   } else {
     q = M >> d;
-    sticky = sticky || ((M & (((unsigned __int128)1 << d) - 1)) != 0);
+    sticky = sticky || ((M & (((u128)1 << d) - 1)) != 0);
   }
   if (sticky) ++q;
 
   if (fe >= -1022) {
-    if (q == ((unsigned __int128)1 << 53)) {
+    if (q == ((u128)1 << 53)) {
       return ref_detail::assemble_normal(0, fe + 1);  // carried into next binade
     }
-    return ref_detail::assemble_normal(static_cast<uint64_t>(q - ((unsigned __int128)1 << 52)), fe);
+    return ref_detail::assemble_normal(static_cast<uint64_t>(q - ((u128)1 << 52)), fe);
   }
 
   // Subnormal domain: pure integer units of 2^-1074 (fact 2).
@@ -118,11 +126,11 @@ inline double round_up_positive(unsigned __int128 M, int E, bool sticky_in = fal
   // fe <= -1023 here so the shift exponent is negative: divide, and any
   // nonzero remainder rounds up to one unit.
   const int sh = -(fe + 1022);
-  unsigned __int128 units;
+  u128 units;
   if (sh > 127) {
     units = 1;
   } else {
-    const unsigned __int128 dd = (unsigned __int128)1 << sh;
+    const u128 dd = (u128)1 << sh;
     units = (q + dd - 1) / dd;
   }
   const double out = std::ldexp(static_cast<double>(units), -1074);
@@ -131,13 +139,13 @@ inline double round_up_positive(unsigned __int128 M, int E, bool sticky_in = fal
 
 // Largest double <= M * 2^E for M > 0 (truncating). Same independent
 // derivation with a floor division and no sticky bump.
-inline double round_down_positive(unsigned __int128 M, int E) {
+inline double round_down_positive(u128 M, int E) {
   const int bl = bit_length(M);
   const int fe = E + bl - 1;
   if (fe > 1023) return kInf;
 
   const int d = fe - 52 - E;
-  unsigned __int128 q;
+  u128 q;
   if (d <= 0) {
     q = M << (-d);
   } else {
@@ -145,18 +153,18 @@ inline double round_down_positive(unsigned __int128 M, int E) {
   }
 
   if (fe >= -1022) {
-    if (q >= ((unsigned __int128)1 << 53)) {
+    if (q >= ((u128)1 << 53)) {
       return ref_detail::assemble_normal((1ULL << 52) - 1, fe + 1);  // truncated carry edge
     }
-    return ref_detail::assemble_normal(static_cast<uint64_t>(q - ((unsigned __int128)1 << 52)), fe);
+    return ref_detail::assemble_normal(static_cast<uint64_t>(q - ((u128)1 << 52)), fe);
   }
 
   const int sh = -(fe + 1022);
-  unsigned __int128 units;
+  u128 units;
   if (sh > 127) {
     return 0.0;  // entire value rounds below the smallest subnormal step
   }
-  const unsigned __int128 dd = (unsigned __int128)1 << sh;
+  const u128 dd = (u128)1 << sh;
   units = q / dd;
   if (units == 0) return 0.0;
   const double out = std::ldexp(static_cast<double>(units), -1074);
@@ -173,15 +181,15 @@ inline double ref_up_add(double a, double b) {
     lo = t;
   }
   const int shift = hi.exp - lo.exp;
-  unsigned __int128 sum = static_cast<unsigned __int128>(hi.mant);
+  u128 sum = static_cast<u128>(hi.mant);
   bool sticky = false;
   if (shift <= 127) {
     if (shift > 0) {
-      const unsigned __int128 mbw = static_cast<unsigned __int128>(lo.mant);
-      sticky = (mbw & (((unsigned __int128)1 << shift) - 1)) != 0;
+      const u128 mbw = static_cast<u128>(lo.mant);
+      sticky = (mbw & (((u128)1 << shift) - 1)) != 0;
       sum += mbw >> shift;
     } else {
-      sum += static_cast<unsigned __int128>(lo.mant);
+      sum += static_cast<u128>(lo.mant);
     }
   } else {
     sticky = lo.mant != 0;
@@ -193,8 +201,8 @@ inline double ref_up_add(double a, double b) {
 inline double ref_up_mul(double a, double b) {
   const Decomposed da = decomp(a);
   const Decomposed db = decomp(b);
-  const unsigned __int128 p =
-      static_cast<unsigned __int128>(da.mant) * db.mant;  // explicit widen
+  const u128 p =
+      static_cast<u128>(da.mant) * db.mant;  // explicit widen
   return round_up_positive(p, da.exp + db.exp);
 }
 

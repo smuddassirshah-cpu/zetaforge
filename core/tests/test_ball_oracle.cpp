@@ -44,71 +44,6 @@ constexpr double kInf = std::numeric_limits<double>::infinity();
 constexpr mpfr_prec_t kPrec = 128;
 constexpr int kTrials = 3000;
 
-// ---- independent floor world (long double) ----
-
-long double ld_half_ulp(long double x) {
-  if (!std::isfinite(x)) {
-    return INFINITY;
-  }
-  const long double up = nextafterl(x, INFINITY);
-  const long double dn = nextafterl(x, -INFINITY);
-  return std::fmax(up - x, x - dn) / 2.0L;
-}
-
-inline long double ld_up_add(long double a, long double b) {
-  const long double s = a + b;
-  if (!std::isfinite(s)) {
-    return s;
-  }
-  const long double bv = s - a;
-  const long double err = (a - (s - bv)) + (b - bv);
-  return err > 0.0L ? nextafterl(s, INFINITY) : s;
-}
-
-inline long double ld_up_mul(long double a, long double b) {
-  const long double r = a * b;
-  if (!std::isfinite(r)) {
-    return INFINITY;
-  }
-  const long double resid = std::fma(a, b, -r);
-  if (resid > 0.0L) {
-    return nextafterl(r, INFINITY);
-  }
-  return r > 0.0L ? r : LDBL_MIN;
-}
-
-long double mpfr_half_ulp_ld(mpfr_srcptr c) {
-  if (mpfr_zero_p(c)) {
-    return std::numeric_limits<double>::denorm_min();
-  }
-  mpfr_t t, d;
-  mpfr_init2(t, mpfr_get_prec(c));
-  mpfr_init2(d, mpfr_get_prec(c));
-  mpfr_set(t, c, MPFR_RNDN);
-  mpfr_nextabove(t);
-  mpfr_sub(d, t, c, MPFR_RNDN);
-  const long double dup = mpfr_get_ld(d, MPFR_RNDN);
-  mpfr_set(t, c, MPFR_RNDN);
-  mpfr_nextbelow(t);
-  mpfr_sub(d, c, t, MPFR_RNDN);
-  const long double ddn = mpfr_get_ld(d, MPFR_RNDN);
-  mpfr_clear(t);
-  mpfr_clear(d);
-  return std::fmax(dup, ddn) / 2.0L;
-}
-
-long double ld_abs_ceiling(mpfr_srcptr c) {
-  mpfr_t tmp;
-  mpfr_init2(tmp, mpfr_get_prec(c));
-  mpfr_abs(tmp, c, MPFR_RNDN);
-  long double v = mpfr_get_ld(tmp, MPFR_RNDU);
-  mpfr_clear(tmp);
-  if (!(v < INFINITY)) {
-    return INFINITY;
-  }
-  return nextafterl(v, INFINITY);  // conservative ceiling
-}
-
 // Sound lower bounds only: every factor is a directed LOWER bound of its
 // true counterpart and products are truncated downward, so these can never
 // exceed the implementation's required radius when it is sound.
@@ -126,7 +61,7 @@ double term_floor(double r, double c_lb) {
   const Decomposed dr = decomp(r);
   const Decomposed dc = decomp(c_lb);
   return exact_ref::round_down_positive(
-      static_cast<unsigned __int128>(dr.mant) * dc.mant, dr.exp + dc.exp);
+      static_cast<exact_ref::u128>(dr.mant) * dc.mant, dr.exp + dc.exp);
 }
 
 }  // namespace

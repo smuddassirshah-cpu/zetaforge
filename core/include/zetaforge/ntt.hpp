@@ -15,6 +15,8 @@
 #include <stdexcept>
 #include <vector>
 
+#include "radius.hpp"
+
 namespace zetaforge {
 
 namespace ntt_detail {
@@ -31,7 +33,7 @@ inline uint64_t sub_mod(uint64_t a, uint64_t b) {
 }
 
 inline uint64_t mul_mod(uint64_t a, uint64_t b) {
-  return static_cast<uint64_t>((static_cast<unsigned __int128>(a) * b) % kMod);
+  return static_cast<uint64_t>((static_cast<u128>(a) * b) % kMod);
 }
 
 inline uint64_t pow_mod(uint64_t base, uint64_t e) {

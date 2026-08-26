@@ -17,11 +17,13 @@
 #include <stdexcept>
 #include <utility>
 
+#include "radius.hpp"
+
 namespace zetaforge {
 
 class Ffix {
  public:
-  using raw_t = __int128;
+  using raw_t = i128;
 
   Ffix() : raw_(0), err_(0) {}
 
@@ -64,9 +66,9 @@ class Ffix {
   // Multiplication with explicit truncation tracking.
   Ffix mul(const Ffix& o) const {
     const bool neg = (raw_ < 0) != (o.raw_ < 0);
-    const unsigned __int128 am = abs_u128(raw_);
-    const unsigned __int128 bm = abs_u128(o.raw_);
-    if (!(am < (unsigned __int128)1 << 120) || !(bm < (unsigned __int128)1 << 120)) {
+    const u128 am = abs_u128(raw_);
+    const u128 bm = abs_u128(o.raw_);
+    if (!(am < (u128)1 << 120) || !(bm < (u128)1 << 120)) {
       throw std::overflow_error("ffix mul range");
     }
 
@@ -81,10 +83,10 @@ class Ffix {
     //   low  = al*bl
     // Q64.64 result raw units = floor(M / 2^64)
     //   = top<<64 + mid + (low>>64); dropped part = low & mask64 (< 1 unit).
-    const unsigned __int128 top = (unsigned __int128)ah * bh;
-    unsigned __int128 mid = (unsigned __int128)ah * bl;
-    mid += (unsigned __int128)al * bh;
-    const unsigned __int128 low = (unsigned __int128)al * bl;
+    const u128 top = (u128)ah * bh;
+    u128 mid = (u128)ah * bl;
+    mid += (u128)al * bh;
+    const u128 low = (u128)al * bl;
 
     const uint64_t lost = static_cast<uint64_t>(low);
 
@@ -103,13 +105,13 @@ class Ffix {
     // the shift exact (top < 2^63 gives top<<64 < 2^127), after which the
     // assembled range test below is itself exact. mid < 2^121 and low >> 64 <
     // 2^64 under the same operand contract, so the sum cannot wrap either.
-    if (!(top < (unsigned __int128)1 << 63)) {
+    if (!(top < (u128)1 << 63)) {
       throw std::overflow_error("ffix mul overflow");
     }
-    unsigned __int128 res = top << 64;
+    u128 res = top << 64;
     res += mid;
-    res += static_cast<unsigned __int128>(low >> 64);
-    if (!(res < (unsigned __int128)1 << 127)) {
+    res += static_cast<u128>(low >> 64);
+    if (!(res < (u128)1 << 127)) {
       throw std::overflow_error("ffix mul overflow");
     }
 
@@ -148,13 +150,13 @@ class Ffix {
     return Ffix(r, e);
   }
 
-  static unsigned __int128 abs_u128(raw_t v) {
-    return v < 0 ? (unsigned __int128)(-v) : (unsigned __int128)v;
+  static u128 abs_u128(raw_t v) {
+    return v < 0 ? (u128)(-v) : (u128)v;
   }
 
   // Promote an existing error count to whole-word granularity against a
   // magnitude: conservative, monotone, never smaller than the input.
-  static raw_t inflate_err(raw_t units, unsigned __int128 magnitude) {
+  static raw_t inflate_err(raw_t units, u128 magnitude) {
     const raw_t words = (raw_t)((magnitude >> 32) + 1);
     const raw_t scaled = units * (words + 1);
     return scaled > units ? scaled : units;

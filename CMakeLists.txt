@@ -27,8 +27,14 @@ foreach(_flagvars
   endif()
 endforeach()
 
+# Warnings are errors on every C++ target in the tree. add_compile_options at
+# top level applies to every target declared afterwards, which is all of them.
+# -Wpedantic is kept: the only extension this project depends on is __int128,
+# and that is declared once behind __extension__ in core/include/zetaforge/
+# radius.hpp rather than by disabling the diagnostic for everything else.
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic -ffp-contract=off -frounding-math)
+  add_compile_options(-Wall -Wextra -Wpedantic -Werror
+                      -ffp-contract=off -frounding-math)
 endif()
 
 option(ZETAFORGE_BUILD_CUDA "Build GPU kernels (requires CUDA toolkit)" OFF)

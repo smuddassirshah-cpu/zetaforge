@@ -61,6 +61,17 @@ Running log. One line each: date, decision, reason, PLAN.md deviation? y/n.
 - 2026-08-24 (rev 5), Revision commits use the form "stage 4 rev 5: <item>"; the
   gate form "stage <N>: <deliverable>" is reserved for the approved gate commit
   only (review finding D5), n
+- 2026-08-26 (rev 6), Two CI legs reinstated as rev 3 findings that this line of
+  history lost. Both existed on an abandoned rev 3 / rev 4 branch (preserved
+  locally as abandoned-rev3-rev4-line; the ASAN leg is commit 73bf420 there),
+  which was built on stage 4 rev 1 rather than on the readiness review, and rev
+  5 was rebuilt from the review instead. Reinstated here: (a) -Werror on every
+  C++ target, with the __int128 pedantic diagnostic silenced by one
+  __extension__ typedef rather than by dropping -Wpedantic; (b) a "sanitisers"
+  leg running the full ctest under -fsanitize=address,undefined with
+  -fno-sanitize-recover=all. Losing a CI leg in a branch switch is exactly the
+  silent-decay failure the ledger exists to prevent, so it is logged rather than
+  quietly re-added, n
 
 ## Open questions
 Anything blocking or deferred, with the stage it affects.
