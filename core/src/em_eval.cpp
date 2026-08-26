@@ -13,12 +13,6 @@ namespace zetaforge {
 
 namespace {
 
-constexpr int kBernMaxK = 10;
-constexpr long long kBNum[kBernMaxK] = {
-    1, -1, 1, -1, 5, -691, 7, -3617, 43867, -174611};
-constexpr long long kBDen[kBernMaxK] = {
-    6, 30, 42, 30, 66, 2730, 6, 510, 798, 330};
-
 // EM correction order is no longer fixed at compile time: M is pinned per call
 // from the target radius (MATHS.md D8.8). The constant that stood here was an
 // environment-tunable order first and a compile-time constant second, and
@@ -26,12 +20,12 @@ constexpr long long kBDen[kBernMaxK] = {
 constexpr int kEmMMax = static_cast<int>(kBernoulliMaxN) - 2;
 constexpr int kEmNMax = 1 << 20;
 
-// The hand-transcribed table above has no other consumer now that the exact
-// recurrence in bernoulli.cpp feeds the series. It stays as the tripwire that
-// recurrence is checked against on first use, which is what makes
-// docs/gate/ATTACKS.md row 3 a live row rather than an accepted blind spot.
-static_assert(kBNum[0] == 1 && kBDen[0] == 6, "Bernoulli table head");
-static_assert(kBernMaxK == 10, "table length is quoted in MATHS.md D8.6");
+// The hand-transcribed Bernoulli table that used to sit here is deleted. It had
+// no consumer once the exact recurrence in bernoulli.cpp began feeding the
+// series, and two transcriptions of the same ten constants is precisely the
+// drift this project keeps finding in its own record. The single committed
+// transcription now lives beside the recurrence it exists to trip, in
+// core/src/bernoulli.cpp, which is where docs/gate/ATTACKS.md row 3 mutates.
 
 struct Mp {
   mpfr_t v;

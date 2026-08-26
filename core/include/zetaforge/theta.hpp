@@ -46,4 +46,12 @@ Ball theta_certified(double t, mpfr_prec_t prec);
 // callers want theta_certified.
 Ball theta_certified_loggamma(double t, mpfr_prec_t prec);
 
+// The Gamma-recurrence shift m the log Gamma path would use at (t, prec).
+// Exposed so the suite can assert the sector invariant Re(z + m) >= Im(z + m)
+// directly, rather than trusting that the rule which establishes it is still
+// there. The Stieltjes remainder bound is sound throughout Re w > 0, so this
+// is a TIGHTNESS and validated-range invariant, not a soundness one; see
+// MATHS.md D8.4 and D8.5.
+unsigned long theta_loggamma_shift(double t, mpfr_prec_t prec);
+
 }  // namespace zetaforge

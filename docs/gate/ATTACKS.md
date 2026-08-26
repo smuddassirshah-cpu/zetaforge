@@ -79,7 +79,7 @@ and it is what the CI leg "gate-battery" reruns on every push to main.
 |---|---|---|---|---|---|---|---|---|
 | 1 | radius.hpp round_up_positive sticky bump removed | 01-radius-sticky.patch | - | $B/core/test_radius | 1 | DETECTED (exit 1) | DETECTED (exit 1, radius_exact) | DETECTED (exit 1) |
 | 2 | theta.cpp truncation term x0.5 | 02-theta-truncation-half.patch | - | $B/core/test_theta | 1 | DETECTED (exit 1, via L3) | DETECTED (exit 1, via L3) | DETECTED (exit 1) |
-| 3 | em_eval Bernoulli numerator corrupted | 03-bernoulli-corrupt.patch | - | ctest --test-dir $B | 1 | UNDETECTED (exit 0) | UNDETECTED (exit 0), accepted | UNDETECTED (exit 0), accepted; row goes live at rev 6, see below |
+| 3 | Bernoulli numerator corrupted in the committed tripwire table | 03-bernoulli-corrupt.patch | - | ctest --test-dir $B | 1 | UNDETECTED (exit 0) | UNDETECTED (exit 0), accepted | UNDETECTED (exit 0), accepted; row goes live at rev 6, see below |
 | 4 | cball mul radius x0.9 | 04-cball-mul-radius-0.9.patch | - | $B/core/test_cball | 1 | UNDETECTED (exit 0) | DETECTED (exit 1) | DETECTED (exit 1) |
 | 5 | cball mul radius x0.5 | 05-cball-mul-radius-0.5.patch | - | $B/core/test_cball | 1 | UNDETECTED (exit 0) | DETECTED (exit 1) | DETECTED (exit 1) |
 | 6 | cball mul radius x0.25 | 06-cball-mul-radius-0.25.patch | - | $B/core/test_cball | 1 | DETECTED (exit 1) | DETECTED (exit 1) | DETECTED (exit 1) |
@@ -106,10 +106,15 @@ and it is what the CI leg "gate-battery" reruns on every push to main.
 
 Recorded rather than hidden. Each names the stage that closes it.
 
-- Row 3 (Bernoulli table): CLOSED at rev 6. The table has a live consumer as
-  soon as zeta_em evaluates, and a Bernoulli oracle test against FLINT's
-  bernoulli table runs beside it, so the row's Expected column changes from 0
-  to 1.
+- Row 3 (Bernoulli table): CLOSED at rev 6. Expected changes from 0 to 1. The
+  table now has two live consumers: bernoulli.cpp checks its exact recurrence
+  against it on first use, and test_theta L5 checks that recurrence against
+  FLINT. Its home moved from core/src/em_eval.cpp to core/src/bernoulli.cpp in
+  the same revision, because the first measurement of this row after the EM
+  path landed came back UNDETECTED: the table had been transcribed TWICE, and
+  the copy the row mutates had quietly become dead. Two transcriptions of the
+  same ten constants is the drift this ledger exists to catch, so one of them
+  was deleted rather than both being mutated.
 - Row 2 detects only through L3 policy equality, an independent transcription
   of the same derivation, not through an enclosure layer. A radius that is
   wrong in both production and transcription would survive. Closed by MATHS.md
