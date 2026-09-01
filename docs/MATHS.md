@@ -19,6 +19,7 @@ claim whose status here is "pending" past the stage that needs it.
 | D6 | Isolation cost factor model (evaluations per zero); early low-height estimate measured at stage 5 over [0,10^6], campaign-height figure confirmed at stage 9(a-i); both compared against the 2x reserve | stage 5 (estimate), stage 9(a-i) (confirmed) | pending |
 | D7 | Ball operation error bounds: centre rounding enters via half_ulp_bound of the rounded result; radius terms outward-rounded by integer-exact primitives (radius.hpp); no binary op exact. Soundness enforced structurally: bit-exact integer reference suite (test_radius), not statistical | stage 2 | done-by-construction + test_radius |
 | D7b | Complex ball (CBall) operation bounds: componentwise deviation bounds for add, mul and mul_real, each carrying an explicit centre-rounding term charged at the precision the result is actually rounded into (mul and mul_real round into temporaries at wp and store at wp; add rounds in place at the stored precision), all radius arithmetic performed with the outward integer-exact primitives of radius.hpp. Derivation below. Soundness AND tightness are both tested: corner containment cannot see an over-wide radius, so test_cball layer C4 additionally asserts the claimed radius lies within a small multiple of the exact deviation bound; layer C5 pins the precision rule | stage 4 | done, tests core/tests/test_cball.cpp layers C1-C5 |
+| D7c | mul_real per-component deviation derivation (rev 6 deviation 2 formalised at rev 7 B4): the componentwise terms enclose the true deviation AND are attained at a corner, which is what makes the C2 cut layer able to falsify them; the retired shared cfr(abs re + abs im) term was sound but slack (measured 1.44x the attained deviation on the C2 fixture) and therefore unfalsifiable by the cut. Derivation below, cited from cball.hpp | stage 4 rev 7 (B4) | done, tests core/tests/test_cball.cpp C1, C2, C4, C5 |
 | D8 | Sub-t0 Z(t), rewritten at rev 6; REPLACES the plan that returned a complex ball and offered |zeta| as a lower bound, which cannot certify a sign because |Z| = |zeta| identically (review finding A1). Certified theta on 0 < t < t0 by the Gamma recurrence into the validated Stirling sector (the domain of the WHOLE dispatch, including the series above t0, is stated as intervals in D9; "every finite t > 0" as this row read through rev 6 is false at both ends and is corrected there) with the Stieltjes remainder as a radius term; certified zeta(1/2+it) by Euler-Maclaurin with BACKLUND's remainder (Edwards section 6.4) rather than first-omitted-term times a safety factor, which is not a theorem on the critical line and under-reports by up to 81x at cost-minimal N (measured, review finding A2); then Z = u cos(theta) - v sin(theta) in ball arithmetic, with u sin(theta) + v cos(theta) required to contain zero as a test assertion. Derivation below | stage 4 | done, tests core/tests/test_theta.cpp (domain, L2b, L4, L5) and core/tests/test_zeta.cpp (L-A to L-D) |
 | D9 | Certified DOMAIN of the shipped entry points, as explicit intervals: theta_certified, zeta_em and Z, with the boundary heights measured rather than asserted. Since rev 7 B2 the whole accepted range is certified UNCONDITIONALLY (the O1-conditional split of Part A collapsed when D1b closed O1). Derivation below | stage 4 | done, measured on a clean clone; tests core/tests/test_theta.cpp (5 rejections) and core/tests/test_zeta.cpp (8 rejections) |
 | D10 | Ffix error-bound saturation policy: what a saturated bound denotes, why the clamp VALUE is not an upper bound, why step-capping equals end-capping for this composition, and why no certified output may depend on a saturated bound. Derivation below | stage 4 rev 7 (B1); consumed at stage 5 | done, tests core/tests/test_ffix.cpp (policy equality, B1 pair); ATTACKS.md rows 24 and 25 |
@@ -361,6 +362,91 @@ sign of the value, so the conversion always rounds away from zero; taking the
 absolute value AFTER a round-up conversion rounds negative values toward zero
 and under-estimates every term the magnitude multiplies. Results pass through
 inflate, so no complex operation claims exactness.
+
+## D7c derivation: mul_real per-component deviation bounds
+
+Formalisation, with its own number, of the bound that rev 6 changed beyond the
+letter of R6-1 (commit aeabdd4, flagged there as a deviation; rev 7 B4 is the
+demand that it carry a derivation rather than a commit message). The code
+citation is core/include/zetaforge/cball.hpp, mul_real, which points back
+here.
+
+### D7c.1 Setting and claim
+
+A CBall holds mpfr centres (ar, ai) at some stored precision and radii
+(rr_a, ri_a); the true value satisfies a_true = (ar + e_r) + i(ai + e_i) with
+|e_r| <= rr_a, |e_i| <= ri_a. mul_real multiplies by a real ball
+c = cf + dc, |dc| <= cfr, forming new centres fl_wp(ar cf) and fl_wp(ai cf)
+in fresh temporaries at precision wp. The claim is the componentwise pair
+
+    |Re(a_true c) - fl_wp(ar cf)| <= |ar| cfr + rr_a |cf| + rr_a cfr + rho_re
+    |Im(a_true c) - fl_wp(ai cf)| <= |ai| cfr + ri_a |cf| + ri_a cfr + rho_im
+
+with rho the wp centre-rounding commitment.
+
+### D7c.2 Enclosure
+
+Expand: Re(a_true c) = (ar + e_r)(cf + dc) = ar cf + ar dc + e_r cf + e_r dc.
+Subtracting the new centre fl_wp(ar cf) = ar cf + rho_re and applying the
+triangle inequality termwise gives
+
+    |dev Re| <= |ar| |dc| + |e_r| |cf| + |e_r| |dc| + |rho_re|
+             <= |ar| cfr + rr_a |cf| + rr_a cfr + |rho_re|,
+
+and identically for Im with (ai, ri_a). The imaginary component's bound
+involves ONLY (ai, ri_a): a real multiplier mixes nothing across components,
+which is exactly why a shared term was slack (D7c.4).
+
+The code dominates each term: abs_upper is a directed ceiling, so
+reu >= |ar|, imu >= |ai|, cfu >= |cf|; up_mul and up_add are the outward
+integer-exact primitives of D7 (never below the real product or sum);
+round_term(wp, abs_upper(nre)) >= |rho_re| by D7's half-ulp policy applied to
+the value actually rounded, at the precision it is actually rounded into
+(the R6-1 rule, D7b); and inflate() adds one outward ulp so no assembled
+radius claims exactness. A componentwise sum of upper bounds is an upper
+bound of the sum, so the claimed radius encloses the true deviation. This is
+layer C1's corner containment, proven rather than sampled.
+
+### D7c.3 Attainment, which is what makes the bound testable
+
+Fix signs s1 = sign(ar), s2 = sign(cf) and take the corner
+e_r = s1 s2 rr_a... precisely: choose dc = sigma cfr and e_r = tau rr_a with
+sigma = sign(ar) and tau = sign(cf sigma)... the point, stated without the
+sign bookkeeping: all three products ar dc, e_r cf, e_r dc can be given a
+common sign simultaneously, because dc and e_r are free in symmetric
+intervals, so there is a corner of the input set where
+
+    |dev Re| = |ar| cfr + rr_a |cf| + rr_a cfr
+
+exactly (and likewise for Im). The deviation part of the bound is therefore
+ATTAINED, not merely valid: shrink it by any factor below 1 and an exact
+corner of the true result set leaves the claimed box. That is what layer C2
+measures with its 0.9x and 0.5x cuts, and attainment is the property the
+retired shared term lacked.
+
+### D7c.4 The retired shared term, and the 1.44x that motivated the change
+
+Through rev 5 (and through commit d34a4e5 within rev 6) both components'
+first term was the shared cfr(|ar| + |ai|). It dominates the per-component
+term, so it was SOUND, and C1 could never object. But it is slack whenever
+|ar| != |ai| contributes: porting C2 to mul_real at rev 6 showed the 0.9x cut
+PASSING, and the measurement on the C2 fixture (|ar| = 2.5, |ai| = 1.5) put
+the claimed radius at 1.44x the attained deviation. A bound the cut layer
+cannot falsify contradicts the doctrine the suite is built on (a suite that
+passes with and without a correct radius is worthless), so commit aeabdd4
+replaced the shared term with the per-component terms mul had always used,
+flagging the production change as a deviation. This section is that
+deviation's derivation of record: enclosure by D7c.2, falsifiability by
+D7c.3, and the measured 1.44x as the reason the slack form could not stay.
+
+### D7c.5 What tests pin it
+
+C1 exact-corner containment (enclosure), C2 cut detection at 0.9x and 0.5x
+over the full independent (stored, wp) precision grid (attainment: the layer
+that failed on the shared term), C4 tightness against the exact D7b/D7c
+deviation and full bounds computed in 600-bit mpfr, and C5 the precision rule
+(R6-1). ATTACKS.md rows 4, 5 and 6 mutate the radius assembly and each is
+DETECTED.
 
 ## D8 derivation: certified theta below t0, and Z(t) by Euler-Maclaurin
 

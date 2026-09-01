@@ -133,6 +133,15 @@ interviewer's first follow-up is always "compared to what?".
 
 ### Stage 4 additions
 
+- 2026-09-01 (stage 4 rev 7, B4). The mul_real per-component deviation bound
+  (rev 6 deviation 2, commit aeabdd4) gets its derivation of record: MATHS.md
+  D7c, cited from cball.hpp. Enclosure is proven termwise over the outward
+  primitives; the bound is ATTAINED at a corner, which is what makes the C2
+  cut layer able to falsify it; the retired shared cfr(|re| + |im|) term was
+  sound but claimed 1.44x the attained deviation on the C2 fixture
+  (|re| = 2.5, |im| = 1.5), so the 0.9x cut passed and the layer could not do
+  its job. No production change at rev 7: the code aeabdd4 shipped is the
+  code D7c derives, n
 - 2026-09-01 (stage 4 rev 7, B3). L-D's policy band replaced. As shipped at
   rev 6 the layer accepted any production/transcription ratio in (0.99, 1.01)
   while the measured agreement was ratio - 1 = 0.0 exactly at all 40 combos:
