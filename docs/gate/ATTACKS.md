@@ -238,13 +238,18 @@ Recorded rather than hidden. Each names the stage that closes it.
   the copy the row mutates had quietly become dead. Two transcriptions of the
   same ten constants is the drift this ledger exists to catch, so one of them
   was deleted rather than both being mutated.
-- Row 2 detects only through L3 policy equality, an independent transcription
-  of the same derivation, not through an enclosure layer. A radius that is
-  wrong in both production and transcription would survive. Closed by MATHS.md
-  O1 and, if it is built, a live enclosure layer above t0. NOTE: the sub-t0
-  path does NOT share this blind spot. Its remainder is bounded by L2b against
-  a corpus and by L4 against an independent derivation, and it carries no
-  safety factor to be wrong about.
+- Row 2 (REVISED at rev 7, B2): through rev 6 this row detected only through
+  L3 policy equality, because the factor-4 radius left a halved truncation
+  term still enclosing (true excess over the first omitted term is ~1.0001,
+  so half of 4x still covered it). With O1 closed and the proven D1b bound
+  shipped, the radius is ~4x tighter and a halved truncation term now FAILS
+  L2 ENCLOSURE against the corpus (35 combo misses measured at rev 7) as
+  well as L3 equality. The blind spot this row carried, a radius wrong in
+  both production and transcription surviving, is now covered wherever
+  truncation dominates the radius; in the slack-dominated regime (low
+  precision) L3 remains the only detector. The sub-t0 path never shared the
+  blind spot: L2b bounds it against a corpus and L4 against an independent
+  derivation, and as of rev 7 NO safety factor exists anywhere in theta.
 - Row 19 (L-C removal), measured UNDETECTED exactly as pre-registered, and
   therefore an accepted, documented dependency rather than a surprise. Nothing
   else in the suite covers the imaginary-cancellation invariant

@@ -21,7 +21,10 @@ any disagreement:
 
   1. the closed form must reproduce core/src/theta.cpp's kCRat exactly, as
      rationals parsed out of the source rather than retyped here;
-  2. it must reproduce kC7 exactly and kC8 to the last bit of its double;
+  2. it must reproduce kC7 exactly, and kThetaTailB16 must strictly exceed
+     the exact |B_16|/15 = 3617/7650 it upper-bounds (MATHS.md D1b.7; the kC8
+     estimate this step previously checked was retired with the factor-4
+     policy at rev 7);
   3. the resulting series must agree with mpmath loggamma at several heights
      to within the first omitted term, which is the model the certified
      remainder bound rests on.
@@ -49,8 +52,8 @@ def closed_form(k):
 
 
 def parse_production_table():
-    """kCRat, kC7 and kC8 as written in theta.cpp. Parsed, never retyped: a
-    confirmer that carries its own copy of the numbers confirms nothing."""
+    """kCRat, kC7 and kThetaTailB16 as written in theta.cpp. Parsed, never
+    retyped: a confirmer that carries its own copy confirms nothing."""
     src = open(THETA_CPP).read()
     block = re.search(r"kCRat\[kThetaTerms\]\s*=\s*\{(.*?)\};", src, re.S)
     if block is None:
@@ -59,9 +62,11 @@ def parse_production_table():
     crat = [Fraction(int(n), int(d)) for n, d in pairs]
     m7 = re.search(r"kC7\s*=\s*([\d.]+)\s*/\s*([\d.]+)", src)
     c7 = Fraction(int(float(m7.group(1))), int(float(m7.group(2))))
-    m8 = re.search(r"kC8\s*=\s*([\d.e+-]+)\s*;", src)
-    c8 = float(m8.group(1))
-    return crat, c7, c8
+    mt = re.search(r"kThetaTailB16\s*=\s*([\d.e+-]+)\s*;", src)
+    if mt is None:
+        raise SystemExit("could not find kThetaTailB16 in " + THETA_CPP)
+    tail = float(mt.group(1))
+    return crat, c7, tail
 
 
 def theta_ref(t):
@@ -75,7 +80,7 @@ def theta_main(t):
 
 def main():
     failures = 0
-    crat, c7, c8 = parse_production_table()
+    crat, c7, tail = parse_production_table()
 
     print("1. closed form vs core/src/theta.cpp kCRat")
     for k, prod in enumerate(crat, start=1):
@@ -85,14 +90,19 @@ def main():
         print(f"   c_{k}: {cf}  {'==' if ok else '!='}  {prod}   "
               f"{'OK' if ok else 'MISMATCH'}")
 
-    print("2. first omitted magnitudes")
-    cf7, cf8 = closed_form(7), closed_form(8)
+    print("2. first omitted magnitude and the proven-tail constant")
+    cf7 = closed_form(7)
     ok7 = cf7 == c7
-    ok8 = float(cf8) == c8
-    failures += (0 if ok7 else 1) + (0 if ok8 else 1)
+    failures += 0 if ok7 else 1
     print(f"   c_7: {cf7} vs kC7 {c7}   {'OK' if ok7 else 'MISMATCH'}")
-    print(f"   c_8: {cf8} = {float(cf8):.17g} vs kC8 {c8:.17g}   "
-          f"{'OK' if ok8 else 'MISMATCH'}")
+    # Strict excess in EXACT arithmetic: the double literal, read as the exact
+    # rational it denotes, must exceed 3617/7650 (D1b.7).
+    exact_tail = Fraction(3617, 7650)          # |B_16| / 15
+    ok_tail = Fraction(tail) > exact_tail
+    failures += 0 if ok_tail else 1
+    print(f"   kThetaTailB16 {tail!r} > |B_16|/15 = {exact_tail}   "
+          f"{'OK' if ok_tail else 'MISMATCH: the tail constant does not '
+                                  'enclose (D1b.7)'}")
 
     print("3. series vs mpmath loggamma, residual against the first omitted term")
     for t in [200, 500, 2000, 10**5, 10**9]:
