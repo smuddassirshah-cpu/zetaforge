@@ -21,6 +21,7 @@ claim whose status here is "pending" past the stage that needs it.
 | D7b | Complex ball (CBall) operation bounds: componentwise deviation bounds for add, mul and mul_real, each carrying an explicit centre-rounding term charged at the precision the result is actually rounded into (mul and mul_real round into temporaries at wp and store at wp; add rounds in place at the stored precision), all radius arithmetic performed with the outward integer-exact primitives of radius.hpp. Derivation below. Soundness AND tightness are both tested: corner containment cannot see an over-wide radius, so test_cball layer C4 additionally asserts the claimed radius lies within a small multiple of the exact deviation bound; layer C5 pins the precision rule | stage 4 | done, tests core/tests/test_cball.cpp layers C1-C5 |
 | D8 | Sub-t0 Z(t), rewritten at rev 6; REPLACES the plan that returned a complex ball and offered |zeta| as a lower bound, which cannot certify a sign because |Z| = |zeta| identically (review finding A1). Certified theta on 0 < t < t0 by the Gamma recurrence into the validated Stirling sector (the domain of the WHOLE dispatch, including the series above t0, is stated as intervals in D9; "every finite t > 0" as this row read through rev 6 is false at both ends and is corrected there) with the Stieltjes remainder as a radius term; certified zeta(1/2+it) by Euler-Maclaurin with BACKLUND's remainder (Edwards section 6.4) rather than first-omitted-term times a safety factor, which is not a theorem on the critical line and under-reports by up to 81x at cost-minimal N (measured, review finding A2); then Z = u cos(theta) - v sin(theta) in ball arithmetic, with u sin(theta) + v cos(theta) required to contain zero as a test assertion. Derivation below | stage 4 | done, tests core/tests/test_theta.cpp (domain, L2b, L4, L5) and core/tests/test_zeta.cpp (L-A to L-D) |
 | D9 | Certified DOMAIN of the shipped entry points, as explicit intervals: theta_certified, zeta_em and Z, with the boundary heights measured rather than asserted, and with the unconditional range separated from the range that is conditional on O1's unproven factor 4. Derivation below | stage 4 | done, measured on a clean clone; tests core/tests/test_theta.cpp (5 rejections) and core/tests/test_zeta.cpp (8 rejections) |
+| D10 | Ffix error-bound saturation policy: what a saturated bound denotes, why the clamp VALUE is not an upper bound, why step-capping equals end-capping for this composition, and why no certified output may depend on a saturated bound. Derivation below | stage 4 rev 7 (B1); consumed at stage 5 | done, tests core/tests/test_ffix.cpp (policy equality, B1 pair); ATTACKS.md rows 24 and 25 |
 
 ## D1a derivation: where the theta coefficients come from
 
@@ -437,6 +438,93 @@ the ceiling cannot be raised without a test changing.
 DoD item 2 read "Certified theta for every finite t > 0". That is false on
 (5.1283146231055239e305, DBL_MAX] by (a), and it is unqualified where O1 makes
 it conditional by (b). It is rewritten in STATE.md to the intervals above.
+
+## D10 derivation: the Ffix error-bound saturation policy
+
+Ffix (core/include/zetaforge/ffix.hpp) tracks a per-value error bound err in
+raw units of 2^-64, composed with deliberate over-estimates and saturating
+unsigned arithmetic clamped at kErrMax = 2^127 - 1. This section answers, as
+policy rather than folklore, the three questions rev 7 B1 poses. It exists
+because the rev 6 fix shipped as a deviation note without them, and because
+62 percent of the policy-equality family saturates, so the clamp is the normal
+path of that layer, not a corner.
+
+### D10.1 What a saturated bound denotes
+
+err = kErrMax denotes "the error budget of this representation is exhausted;
+the value carries NO usable bound". It is a poison marker with exactly the
+semantics of an infinite Ball radius (Ball::unknown_at_precision): the value
+may be arbitrarily far from the true result and the only sound reading is
+"unknown". err_saturated() is the accessor; err() is a bound on the true
+accumulated error IF AND ONLY IF err_saturated() is false.
+
+### D10.2 The clamp value is NOT an upper bound, by exhibition
+
+If kErrMax were read as a numeric bound at the clamp it would be unsound, and
+one reachable pair proves it. For a = (raw 2^119, err 2^126) and
+b = (raw 2^8, err 2^126), both admissible under the range contract, the exact
+policy composition of mul's error is
+
+    e_exact = ea + eb + ea (bm>>32 + 1) + eb (am>>32 + 1) + 1
+            = 2^213 + 2^127 + 2^126 + 1  ~  5.27 x 10^64,
+
+with ea = 2^126 (2^87 + 2) and eb = 2^127. That exceeds kErrMax ~ 1.70 x 10^38
+by a factor of about 2^86. A clamp read as a bound would understate the
+composed bound by that factor; read as a poison marker it asserts nothing
+numeric and is sound vacuously. This is why the type's contract sentence says
+a saturated error "is never a small number standing in for a large one":
+the number kErrMax itself must not be read at all.
+
+The same pair is the B1 regression: on the pre-fix composition (signed
+__int128, commit fca734c) the wrap chain lands on err = 1 raw unit, i.e. the
+tracked bound claimed 2^-64 where the policy owes ~2^213 units. The
+demonstration harness, both printed values, and the fca734c provenance are in
+the rev 7 gate report and DECISIONS.md; test_ffix asserts the fixed
+composition saturates on this exact pair.
+
+### D10.3 Step-capping equals end-capping
+
+Production saturates at every step (sat_add, sat_mul, inflate_err); the
+policy-equality layer in test_ffix computes the EXACT composition in GMP
+integers and caps once at the end, asserting equality with min(e_exact,
+kErrMax). These agree by a three-line argument: every quantity in the
+composition is non-negative and the composition is monotone in each argument,
+so if any intermediate step saturates, the exact value of that step already
+exceeds kErrMax, hence e_exact >= that step > kErrMax, and both sides equal
+kErrMax; if no step saturates, every step is exact and both sides equal
+e_exact. This is what licenses the end-capped GMP transcription as an
+equality oracle, and it is why ATTACKS.md row 25 (clamp lowered to 2^64 - 1)
+must break equality on every saturating case: the transcription pins the cap
+at 2^127 - 1.
+
+### D10.4 No certified output may depend on a saturated bound
+
+The answer to "may a certified output depend on one" is NO, and the proof
+that none does is structural, not behavioural. zetaforge_core compiles
+exactly ball.cpp, bernoulli.cpp, em_eval.cpp and theta.cpp (plus the gated
+sabotage.cpp); none of them, nor any header they reach, includes ffix.hpp.
+The only translation units in the tree that include ffix.hpp are
+core/tests/test_ffix.cpp and core/tests/test_determinism.cpp. There is
+therefore no path from Ffix to any certified value today; the verbatim
+include grep is part of every gate report (A10 format).
+
+Forward rule, recorded now so stage 5 cannot inherit an ambiguity: when the
+multipoint path consumes Ffix, a computation whose err_saturated() is true
+MUST escalate exactly as a Ball with infinite radius does (recompute at higher
+precision or mark the block Contested). A saturated bound entering a
+certificate is a soundness violation by definition, and the stage 5 gate owns
+the test that enforces it.
+
+### D10.5 The 62 percent, read correctly
+
+FFIX_ERR_POLICY_EQUALITY reports saturating=2358 of 3804. That family is the
+adversarial boundary-hunting distribution of the equality layer, constructed
+so that wraps land on zero and clamps are exercised; it is not a production
+distribution, and there is no production distribution because no production
+consumer exists (D10.4). The number says the equality oracle exercises the
+clamp on a majority of its cases, which is what makes rows 24 and 25
+detectable; it says nothing about how often certified arithmetic would
+saturate, which today is never, structurally.
 
 ## References of record
 
