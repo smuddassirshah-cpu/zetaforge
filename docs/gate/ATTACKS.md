@@ -28,6 +28,14 @@ Rules:
 - A row is executable, not narrative. tools/gate_battery.sh parses this file
   and runs every row; docs/gate/mutations/ holds the patches. A row that cannot
   be run from this table is not a row.
+- The battery commit and the branch tip may differ only by commits that touch
+  records alone (rev 7 rule A12). When they differ, the measured column's
+  provenance note must name the battery commit, list every intervening commit,
+  and state why the diff cannot change any row's behaviour: documentation and
+  record changes only, with no change to source, tests, patches, the build, or
+  the battery script. A tip that changes any of those invalidates the
+  measurement and the battery is re-run. The Part A record below was accepted
+  under this rule retroactively; from Part B on it is a standing requirement.
 
 Provenance: rows 1 to 11 are the sabotage matrix measured by the independent
 readiness review of 2026-08-24 (docs/REVIEW-2026-08-24.md, finding C7) against
@@ -98,6 +106,14 @@ CLONE OF ORIGIN in a scratch directory, on Darwin 25.6.0 arm64, Apple clang
 every row. No figure in this column comes from a pre-existing build tree; the
 clone was made from origin at the pushed sha and every row rebuilds from
 scratch inside it.
+
+A12 compliance for the Part A record: the battery commit is 129cf18 and the
+branch tip at the time of recording was 956bb12. The intervening commit is
+956bb12 itself ("record the measured battery and the first green CI run"),
+which touches docs/gate/ATTACKS.md and STATE.md alone: no source, test, patch,
+build or battery-script file changes between the two, so no row's behaviour
+can differ. The CI gate-battery leg at 129cf18 independently reproduced every
+row on Linux.
 
 Reproduced independently on a second toolchain for the first time in this
 project: the CI leg gate-battery at 129cf18 on Linux 6.17 x86_64 with GCC

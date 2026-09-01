@@ -139,6 +139,22 @@ jobs:
       - name: run every ATTACKS.md row
         run: ./tools/gate_battery.sh
 
+  # The A2 residue audit as a versioned instrument (rev 7 A11). Signature
+  # based, not apply based: an apply probe reported the known contaminated
+  # commit as clean once context drifted, so the tool compares changed lines
+  # and carries 951bfd9 as a waived incident that doubles as its positive
+  # control. Full history needed: the audit walks every commit.
+  mutation-residue-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: the auditor must still flag the recorded incident
+        run: python3 tools/audit_mutation_residue.py --self-test
+      - name: no commit may carry an unwaived mutation
+        run: python3 tools/audit_mutation_residue.py --all
+
   sabotage-battery:
     runs-on: ubuntu-latest
     steps:
