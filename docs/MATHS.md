@@ -19,7 +19,8 @@ claim whose status here is "pending" past the stage that needs it.
 | D6 | Isolation cost factor model (evaluations per zero); early low-height estimate measured at stage 5 over [0,10^6], campaign-height figure confirmed at stage 9(a-i); both compared against the 2x reserve | stage 5 (estimate), stage 9(a-i) (confirmed) | pending |
 | D7 | Ball operation error bounds: centre rounding enters via half_ulp_bound of the rounded result; radius terms outward-rounded by integer-exact primitives (radius.hpp); no binary op exact. Soundness enforced structurally: bit-exact integer reference suite (test_radius), not statistical | stage 2 | done-by-construction + test_radius |
 | D7b | Complex ball (CBall) operation bounds: componentwise deviation bounds for add, mul and mul_real, each carrying an explicit centre-rounding term charged at the precision the result is actually rounded into (mul and mul_real round into temporaries at wp and store at wp; add rounds in place at the stored precision), all radius arithmetic performed with the outward integer-exact primitives of radius.hpp. Derivation below. Soundness AND tightness are both tested: corner containment cannot see an over-wide radius, so test_cball layer C4 additionally asserts the claimed radius lies within a small multiple of the exact deviation bound; layer C5 pins the precision rule | stage 4 | done, tests core/tests/test_cball.cpp layers C1-C5 |
-| D8 | Sub-t0 Z(t), rewritten at rev 6; REPLACES the plan that returned a complex ball and offered |zeta| as a lower bound, which cannot certify a sign because |Z| = |zeta| identically (review finding A1). Certified theta for every finite t > 0 by the Gamma recurrence into the validated Stirling sector with the Stieltjes remainder as a radius term; certified zeta(1/2+it) by Euler-Maclaurin with BACKLUND's remainder (Edwards section 6.4) rather than first-omitted-term times a safety factor, which is not a theorem on the critical line and under-reports by up to 81x at cost-minimal N (measured, review finding A2); then Z = u cos(theta) - v sin(theta) in ball arithmetic, with u sin(theta) + v cos(theta) required to contain zero as a test assertion. Derivation below | stage 4 | done, tests core/tests/test_theta.cpp (domain, L2b, L4, L5) and core/tests/test_zeta.cpp (L-A to L-D) |
+| D8 | Sub-t0 Z(t), rewritten at rev 6; REPLACES the plan that returned a complex ball and offered |zeta| as a lower bound, which cannot certify a sign because |Z| = |zeta| identically (review finding A1). Certified theta on 0 < t < t0 by the Gamma recurrence into the validated Stirling sector (the domain of the WHOLE dispatch, including the series above t0, is stated as intervals in D9; "every finite t > 0" as this row read through rev 6 is false at both ends and is corrected there) with the Stieltjes remainder as a radius term; certified zeta(1/2+it) by Euler-Maclaurin with BACKLUND's remainder (Edwards section 6.4) rather than first-omitted-term times a safety factor, which is not a theorem on the critical line and under-reports by up to 81x at cost-minimal N (measured, review finding A2); then Z = u cos(theta) - v sin(theta) in ball arithmetic, with u sin(theta) + v cos(theta) required to contain zero as a test assertion. Derivation below | stage 4 | done, tests core/tests/test_theta.cpp (domain, L2b, L4, L5) and core/tests/test_zeta.cpp (L-A to L-D) |
+| D9 | Certified DOMAIN of the shipped entry points, as explicit intervals: theta_certified, zeta_em and Z, with the boundary heights measured rather than asserted, and with the unconditional range separated from the range that is conditional on O1's unproven factor 4. Derivation below | stage 4 | done, measured on a clean clone; tests core/tests/test_theta.cpp (5 rejections) and core/tests/test_zeta.cpp (8 rejections) |
 
 ## D1a derivation: where the theta coefficients come from
 
@@ -363,6 +364,79 @@ stated purpose, and was written into the code without a derivation anywhere.
 - Backlund: worst true-error over bound 0.7675 across t in
   {1, 14.13, 50, 200, 300, 1000, 5000, 20000} x {N ~ t/2pi, N >= t}.
 
+
+## D9 certified domain, as explicit intervals
+
+Measured on a clean clone at the rev 7 Part A tip, not asserted. The probe
+evaluates each entry point across t from 5e-324 to DBL_MAX and records what is
+returned or thrown. Constants below are the measured boundaries.
+
+### D9.1 theta_certified(t, prec)
+
+    accepted, certified unconditionally   0 < t < 200
+    accepted, certified CONDITIONALLY     200 <= t <= 5.1283146231055239e305
+    rejected, std::domain_error           t <= 0            (including -0.0)
+    rejected, std::invalid_argument       t not finite      (NaN, +/-inf)
+    rejected, std::invalid_argument       5.1283146231055247e305 <= t <= DBL_MAX
+
+Three things this makes explicit that "every finite t > 0" did not.
+
+(a) The upper boundary is real and it is inside the finite doubles. The largest
+    accepted t is 5.1283146231055239e305 and the smallest rejected finite t is
+    the next double above it, 5.1283146231055247e305; DBL_MAX is rejected. The
+    boundary does not move with prec (measured identical at 64, 128, 256 and
+    512), because it is not a precision limit. The mpfr rounding term of D8.7
+    (ii) is sized from the centre read back through mpfr_get_d, and
+    |theta(t)| ~ (t/2)(ln(t/2 pi) - 1) crosses DBL_MAX at exactly that height,
+    so the radius evaluates to +inf and Ball::from_centre_and_radius refuses
+    it. The refusal is the sound behaviour - a certified radius of +inf is not
+    a certificate - but the domain claim has to say so.
+
+(b) "Certified" is not one predicate across the whole range. Below t0 = 200 the
+    log Gamma path of D8 carries no safety factor: its remainder is the
+    Stieltjes bound and its rounding term is counted. At and above t0 the
+    dispatch goes to the D1 series, whose radius carries kThetaSafety = 4, and
+    O1 records that this constant is empirically calibrated rather than proven,
+    with the confirmer measuring the true residual over the first omitted term
+    at 1.000115 at t = 200. The factor is load-bearing, so [200, 5.128e305] is
+    certified CONDITIONAL ON O1. Until O1 closes, a certified claim above t0 is
+    a claim modulo an unproven constant, and this document will not call the
+    two the same word without qualification.
+
+(c) Certified is not the same as narrow. The radius at prec = 128 is 3.5e-47 at
+    t = 199.999 and 4.0e+264 at t = 1e300: sound throughout, useless at the top
+    end, because the rounding term scales with |theta(t)| 2^-prec. An absolute
+    accuracy target at height t therefore fixes a precision, and nothing in the
+    interval statement above should be read as an accuracy statement.
+
+The five inputs test_theta asserts are refused - 0.0, -1.0, -1e-300, NaN and
++inf - all lie OUTSIDE "finite t > 0" already: three are not positive and two
+are not finite. They are the guard on the hypothesis, not counterexamples to
+it. The counterexample to "every finite t > 0" is (a): the overflow band.
+
+### D9.2 zeta_em(t, prec), and Z
+
+    accepted                          0 < t <= 400   (= kEmTMax, D8.10)
+    rejected, std::invalid_argument   t <= 0, and t not finite
+    rejected, std::domain_error       t > 400
+
+Z(t) is the ZResult.re member of zeta_em's return value and has exactly this
+domain; there is no other producer of Z in the tree. Because the assembly of
+D8.9 multiplies the zeta ball by cos(theta) and sin(theta), Z inherits D9.1's
+conditionality wherever the two overlap: Z is certified unconditionally on
+0 < t < 200 and conditionally on O1 for 200 <= t <= 400.
+
+The eight inputs test_zeta asserts are refused are 0.0, -1.0 and NaN
+(invalid_argument), and 401.0, 500.0, 1000.0, 5000.0 and 20000.0
+(domain_error). The last five are the heights the rev 1 sweep evaluated above
+the ceiling; they are asserted to REFUSE rather than dropped from the suite, so
+the ceiling cannot be raised without a test changing.
+
+### D9.3 Consequence for the stage 4 definition of done
+
+DoD item 2 read "Certified theta for every finite t > 0". That is false on
+(5.1283146231055239e305, DBL_MAX] by (a), and it is unqualified where O1 makes
+it conditional by (b). It is rewritten in STATE.md to the intervals above.
 
 ## References of record
 

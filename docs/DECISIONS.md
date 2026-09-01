@@ -131,6 +131,56 @@ interviewer's first follow-up is always "compared to what?".
   with written justification (transcription approximates post-series |centre|
   in closed form; difference provably < 1e-3 for t >= 200).
 
+### Stage 4 additions
+
+- 2026-08-26 (stage 4 rev 6, RECORDED IN FULL at rev 7 A8). kEmTMax lowered
+  from 20000 to 400. The 20000 was asserted in code with no derivation in any
+  document, which is what review finding D6 charged; the number below is
+  derived, and the derivation of record is MATHS.md D8.10.
+
+  Derivation that fixes 400.
+  (i)  What the EM path OWES. Its obligation is the range the RS path cannot
+       serve, which is 0 < t <= t0 with t0 = 200 pinned in D2 from Gabcke's
+       published validity conditions. Above t0 the EM path is not required at
+       all; it is a second opinion.
+  (ii) What a second opinion is worth per unit of height. The EM path costs
+       N >= t Dirichlet terms plus m = ceil(t/2) Gamma-recurrence steps for
+       theta, so about 4t transcendental operations at working precision. The
+       RS path costs about sqrt(t / 2 pi) main-sum terms. The ratio is
+       4 sqrt(2 pi t): already about 140x at t0, and growing without bound.
+       Measured N + M at prec = 256: 97 at t = 0.5, 103 at gamma_1, 252 at
+       t = 200, 452 at t = 400.
+  (iii) Why more height buys nothing. The overlap layer's value is that two
+       derivations sharing no coefficient, no truncation argument and no
+       remainder bound agree. That is a property of the two derivations, not
+       of the height at which they are compared. They are not more independent
+       at t = 20000 than at t = 400.
+  (iv) The choice. kEmTMax = 2 t0 = 400 buys a full octave [200, 400] of
+       overlap for the agreement layer, at most about 1600 transcendental
+       operations at the ceiling, and stops. 20000 was 50x that cost at the
+       ceiling for no stated purpose and no definition-of-done item.
+
+  What covers t > 400, and at which stage. Nothing in the tree does today, and
+  that is stated rather than implied: zeta_em refuses every t > 400 with
+  std::domain_error, and there is no other producer of Z(t). The range is
+  assigned to the RS path, rs_main plus rs_corr, at STAGE 4b, whose definition
+  of done carries the agreement obligation on [200, 400]. Until stage 4b
+  lands, the certified reach of this engine is 0 < t <= 400 and no document
+  may say otherwise. PLAN.md section 11 now names the assignment in the
+  stage 4b row. The five heights the rev 1 sweep used above the ceiling
+  (401, 500, 1000, 5000, 20000) are asserted in test_zeta to REFUSE rather
+  than dropped, so the ceiling cannot be raised without a test changing.
+
+- 2026-08-26 (stage 4 rev 6). Backlund's explicit remainder bound (Edwards
+  section 6.4) replaces first-omitted-term times kEmSafety = 4 in the EM path.
+  The replaced policy is not a theorem for s = 1/2 + it: the enveloping
+  property justifying first-omitted-term bounds holds for real s > 0, and the
+  measured true-remainder over first-omitted-term ratio on the critical line
+  at cost-minimal N is 4.72 at t = 200 and 81.3 at t = 20000, so the old
+  policy under-reported by up to 20x on the band the path owns and by 81x at
+  the old ceiling. Worst measured true-error over Backlund bound across the
+  same sweep: 0.7675.
+
 ### Stage 3 additions
 
 - 2026-08-22 (stage 3). Theta architecture: certified asymptotic series in
