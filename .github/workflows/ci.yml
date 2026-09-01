@@ -87,6 +87,8 @@ jobs:
         run: pytest -q
       - name: theta coefficient provenance must be executable
         run: python tools/discover_theta_coefficients.py
+      - name: the proven theta remainder bound must enclose (MATHS.md D1b)
+        run: python tools/confirm_theta_remainder.py
 
   gitleaks:
     runs-on: ubuntu-latest

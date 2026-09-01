@@ -30,12 +30,14 @@
 //   L3  POLICY EQUALITY: radius equals an independent transcription of the
 //       full series-path derivation, within 1e-3 relative.
 //
-// Known limit, recorded rather than hidden (review finding A3): L2 cannot see
-// a radius that is merely too small in the regime where the mpfr slack term
-// dominates, and the D1 truncation bound is empirically calibrated, not
-// proven, until MATHS.md O1 closes. L3 is what detects production drift on the
-// series path. The D8 path carries no safety factor, so L2b and L4 bound it
-// directly.
+// Known limit, revised at rev 7 (B2): the D1 truncation bound is PROVEN
+// (MATHS.md D1b; O1 closed) and 4x tighter than the retired factor-4 policy,
+// so a halved truncation term now breaks L2 ENCLOSURE at the precisions where
+// truncation dominates the radius, as well as L3 equality everywhere. L2
+// still cannot see a too-small radius where the mpfr slack term dominates
+// (low precisions); L3 covers that regime. The D8 path carries no safety
+// factor either, so L2b and L4 bound it directly: as of rev 7 NO safety
+// factor exists anywhere in theta.
 //
 // Sabotage hooks (compile-time gated: ZF_SABOTAGE_HOOKS, see core/src/sabotage.cpp):
 //   ZF_IMPL_RADIUS_SCALE  scales production radius -> breaks L2 and L3
@@ -76,7 +78,6 @@
 #endif
 
 using zetaforge::Ball;
-using zetaforge::kThetaSafety;
 using zetaforge::theta_certified;
 using zetaforge::theta_certified_loggamma;
 
@@ -100,9 +101,16 @@ double g_scale() {
 }
 
 double bound_base(double t) {
+  // The PROVEN D1b bound, transcribed: c7/t^13 + (|B16|/15)/t^15 + e-term,
+  // times the 1 + 2^-40 evaluation guard of D1b.7.
   const double c7 = 8191.0 / 2555904.0;
-  const double c8 = 0.014774875890195759;
-  return ((c7 + c8 / (t * t)) / std::pow(t, 13.0));
+  const double tail_b16 = 0.4728105;   // > 3617/7650, as in production
+  const double p13 = std::pow(t, 13.0);
+  const double e4 = 4.0 * t;
+  const double eterm =
+      e4 >= 1074.0 ? std::numeric_limits<double>::denorm_min()
+                   : std::ldexp(1.0, -static_cast<int>(e4));
+  return (c7 / p13 + tail_b16 / (p13 * t * t) + eterm) * (1.0 + 0x1p-40);
 }
 
 // Independent transcription of ALL radius components for L3 policy
@@ -115,7 +123,7 @@ double radius_transcribed(double t, int prec) {
   const double mpfr_slack = centre_scale * std::ldexp(1.0, -(prec - 2));
   const double coeff_slack = std::ldexp(1.0, 1 - prec)
                              * ((1.0 / 48.0) / t) * (1.0 + 1e-3);
-  return kThetaSafety * g_scale() * rem + mpfr_slack + coeff_slack;
+  return g_scale() * rem + mpfr_slack + coeff_slack;
 }
 
 
@@ -173,6 +181,7 @@ static int run_suite() {
     std::string line;
     int combos = 0;
     double tight_max = 0.0;
+    double tight_min_margin = 1.0;
     mpfr_t g, d, tol;
     mpfr_init2(g, 1200); mpfr_init2(d, 1200); mpfr_init2(tol, 160);
     const mpfr_prec_t precs[4] = {128, 192, 256, 512};
@@ -202,13 +211,31 @@ static int run_suite() {
         }
         ZF_CHECK(mpfr_cmp(d, tol) <= 0);
 
-        // regime bookkeeping: where the series bound dominates the mpfr
-        // rounding term, the D1 claim itself is empirically testable.
+        // Regime bookkeeping: where the series bound dominates the mpfr
+        // rounding term, the D1 claim itself is empirically testable. The
+        // ratio is against the FULL radius (rev 7, B2): the measured error
+        // includes the actual centre rounding, which only the slack term
+        // absorbs, so err/radius is provably below 1 while err/trunc-bound
+        // alone can graze it from either side in the far tight zone.
         const double mag = std::fabs(mpfr_get_d(th.centre(), MPFR_RNDN));
         const double slack = (mag > 0.0 ? mag : 1.0)
                            * std::ldexp(1.0, -(pr - 2));
         const double b = bound_base(t) * g_scale();
-        if (slack <= b) { const double dd = mpfr_get_d(d, MPFR_RNDN); if (dd / b > tight_max) tight_max = dd / b; }
+        if (slack <= b) {
+          const double dd = mpfr_get_d(d, MPFR_RNDN);
+          const double rat = dd / th.radius();
+          if (rat > tight_max) tight_max = rat;
+          // Exact relative margin (tol - d)/tol in mpfr: the double ratio
+          // above saturates at 1.0 once the margin drops below double eps,
+          // which it does for t >= ~1e9 where the D1b margin is ~143/t^2.
+          mpfr_t mg;
+          mpfr_init2(mg, 160);
+          mpfr_sub(mg, tol, d, MPFR_RNDD);
+          mpfr_div(mg, mg, tol, MPFR_RNDD);
+          const double m = mpfr_get_d(mg, MPFR_RNDD);
+          mpfr_clear(mg);
+          if (m < tight_min_margin) tight_min_margin = m;
+        }
         ++combos;
       }
     }
@@ -218,7 +245,18 @@ static int run_suite() {
     // because the parse loop skips malformed rows (review finding C5).
     ZF_CHECK(combos >= 84);
     std::fprintf(stdout, "L12_COMBOS %d\n", combos);
-    std::fprintf(stdout, "L12_TIGHT_ZONE_MAX_ERR_OVER_BOUND %.6f\n", tight_max);
+    // Rev 7, B2. Under the proven D1b bound the true error approaches the
+    // radius from BELOW with relative margin ~143/t^2, which falls under
+    // double eps around t ~ 1e9: the double ratio then reads exactly 1.0
+    // while the EXACT mpfr comparison above still holds with room. Both
+    // numbers are printed so the evidence carries the margin, not just the
+    // saturated ratio. The margin must stay strictly positive.
+    std::fprintf(stdout, "L12_TIGHT_ZONE_MAX_ERR_OVER_RADIUS %.12f\n", tight_max);
+    // 1e-13 floor: the 2^-40 evaluation guard (~9.1e-13) minus worst-case
+    // accumulated double rounding (~1.5e-15, one-ulp libm pow included)
+    // cannot fall below it on any conforming platform.
+    ZF_CHECK(tight_min_margin > 1e-13);
+    std::fprintf(stdout, "L12_TIGHT_ZONE_MIN_MARGIN %.6e\n", tight_min_margin);
   }
 
   // ---- L2b: sub-t0 corpus enclosure (MATHS.md D8) -----------------------

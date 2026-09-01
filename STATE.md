@@ -150,6 +150,27 @@ Running log. One line each: date, decision, reason, PLAN.md deviation? y/n.
   battery is re-run. The Part A record (battery at 129cf18, tip 956bb12) is
   brought into compliance retroactively, n
 
+- 2026-09-01 (rev 7 B, B2), O1 closed: kThetaSafety = 4 replaced by the
+  proven remainder bound c7/t^13 + (|B16|/15)/t^15 + (1/2)e^(-pi t), every
+  t > 0 (MATHS.md D1b; Nemes, Appl. Anal. Discrete Math. 7 (2013), Thm 4,
+  after the exact duplication/reflection reduction to Hermite's expansion at
+  arg z = pi/2). The proven bound is 3.99x TIGHTER than the retired policy.
+  D1a's closed form is now derived, not only generated. The gate instruction's
+  DLMF pointer resolves to 5.11(ii) in current numbering ((iii) is Ratios);
+  the sec^{2n}(theta/2) route was derived and verified as corroboration at
+  factor 128.03. Executable evidence: tools/confirm_theta_remainder.py, in
+  CI. Mutation row 2's detection channel widens from L3-only to L2+L3;
+  patch 02 regenerated for the new radius lines, Expected unchanged, y
+- 2026-09-01 (rev 7 B, B2), Evaluation guard kThetaEvalGuard = 1 + 2^-40
+  added to the double evaluation of the proven bound. Found by the new L12
+  exact-margin instrumentation BEFORE commit: the draft soundness argument
+  (tail-literal surplus dominates rounding) fails above t ~ 1.6e5, and the
+  measured enclosure margin at the corpus top was 3.5e-16, one adverse libm
+  rounding from a miss on some platform. The guard costs 9.1e-13 relative
+  radius and makes the double-evaluated bound exceed the proven bound on any
+  1-ulp-libm platform; L12 now asserts the exact mpfr margin stays above
+  1e-13 every run, y
+
 
 ## Open questions
 Anything blocking or deferred, with the stage it affects.
@@ -374,7 +395,7 @@ nothing is asserted in prose alone.
 | # | Item | Backed by | State |
 |---|---|---|---|
 | 1 | gamma_1 = 14.1347 reproduced via the Euler-Maclaurin path | test_zeta L-B: certified NEGATIVE at 14.1347251417, certified POSITIVE at 14.1347251418, sign change isolated in a bracket of width 1e-10 | green |
-| 2 | Certified theta on the intervals of MATHS.md D9, NOT on every finite t > 0: unconditionally certified on 0 < t < 200, certified conditional on open item O1 for 200 <= t <= 5.1283146231055239e305, refused outside those | test_theta L2b (112 combos, max err/radius 0.852895), L4 overlap against the independent series derivation (12 combos, max 0.250000), L6 sector invariant (44 combos, 0 violations), plus the 5 domain rejections | green below t0; CONDITIONAL above t0 |
+| 2 | Certified theta on the intervals of MATHS.md D9, UNCONDITIONALLY on the whole accepted range 0 < t <= 5.1283146231055239e305, refused outside (the O1 conditionality collapsed at rev 7 B2: the series remainder bound is PROVEN, MATHS.md D1b, and 4x tighter than the retired factor-4 policy) | test_theta L2b (112 combos, max err/radius 0.852895), L4 overlap against the independent series derivation (12 combos, max 0.999108, margin structural per D1b), L6 sector invariant (44 combos, 0 violations), L12 exact enclosure margin floor, the 5 domain rejections, and tools/confirm_theta_remainder.py in CI | green |
 | 3 | Complex ball operation bounds (MATHS.md D7b) | test_cball C1 to C5: containment, cut detection at 0.9x and 0.5x over the full precision grid, tightness within 4x, and the precision rule | green |
 | 4 | Z(t) matches an independent reference within certified radii on the overlap region | test_zeta L-A against acb_dirichlet_hardy_z, 40 combinations, zero additive slack, plus L-C and L-D | green |
 
@@ -419,9 +440,9 @@ derivation and the reason for each boundary in MATHS.md D9.
 
 | Entry point | Certified unconditionally | Certified conditional on O1 | Refused |
 |---|---|---|---|
-| theta_certified(t, prec) | 0 < t < 200 | 200 <= t <= 5.1283146231055239e305 | t <= 0 (domain_error); non-finite t (invalid_argument); 5.1283146231055247e305 <= t <= DBL_MAX (invalid_argument) |
-| zeta_em(t, prec) | 0 < t < 200 | 200 <= t <= 400 | t <= 0 and non-finite t (invalid_argument); t > 400 (domain_error) |
-| Z(t) | 0 < t < 200 | 200 <= t <= 400 | as zeta_em: Z is ZResult.re and has no other producer |
+| theta_certified(t, prec) | 0 < t <= 5.1283146231055239e305 | (none since rev 7 B2) | t <= 0 (domain_error); non-finite t (invalid_argument); 5.1283146231055247e305 <= t <= DBL_MAX (invalid_argument) |
+| zeta_em(t, prec) | 0 < t <= 400 | (none since rev 7 B2) | t <= 0 and non-finite t (invalid_argument); t > 400 (domain_error) |
+| Z(t) | 0 < t <= 400 | (none since rev 7 B2) | as zeta_em: Z is ZResult.re and has no other producer |
 
 Two corrections this forces, both recorded rather than folded in silently.
 
@@ -431,11 +452,12 @@ Two corrections this forces, both recorded rather than folded in silently.
    the centre read back through a double, evaluates to +inf. Refusing is the
    sound behaviour; claiming the range was covered was not. The boundary does
    not move with precision (measured identical at 64, 128, 256 and 512).
-2. "Certified" was one word covering two different things. Below t0 = 200 the
-   D8 log Gamma path carries no safety factor. At and above t0 the D1 series
-   carries kThetaSafety = 4, which O1 records as empirically calibrated and
-   load-bearing, not proven. The table above separates them, and Z inherits the
-   split through cos(theta) and sin(theta) on [200, 400].
+2. "Certified" was one word covering two different things at Part A: the D8
+   path proven, the D1 series resting on the empirical kThetaSafety = 4 (O1).
+   RESOLVED at Part B (B2): the series remainder is now PROVEN (MATHS.md D1b,
+   from Nemes 2013b Thm 4 after the exact reduction to Hermite's expansion at
+   arg z = pi/2), the factor 4 is retired, the shipped radius is ~4x tighter,
+   and the conditional column above is empty. One word, one meaning.
 
 The 5 inputs test_theta refuses (0.0, -1.0, -1e-300, NaN, +inf) and 3 of the 8
 test_zeta refuses (0.0, -1.0, NaN) are NOT counterexamples to "finite t > 0":
@@ -452,21 +474,20 @@ changing.
 - Agreement between the RS path and the EM path on the overlap band
   [t0, kEmTMax] = [200, 400], within combined certified radii. The EM side of
   that comparison exists and is green today; the RS side does not exist.
-- CARRIED FROM O1, which stays open: the theta series remainder bound above t0
-  is empirically calibrated, not proven, and its factor 4 is LOAD-BEARING, not
-  headroom. The confirmer measures the true residual over the first omitted
-  term at 1.000115 at t = 200, strictly above 1 at every height tested, so
-  without the factor the D1 bound is not a bound. Stage 4b's RS path inherits
-  that assumption directly, and stage 6's verifier is specified to trust
-  "published theta bounds", a premise that is false until O1 closes.
-  Consequence, recorded here so it cannot be lost between stages: any certified
-  claim resting on theta above t0 rests on an unproven constant, and closing O1
-  means transcribing Gabcke's explicit per-term critical-line constants. A
-  Stirling sector bound will not do it; the sector constants at these orders far
-  exceed 4.
-- Note the sub-t0 path does NOT inherit this. D8 carries no safety factor
-  anywhere: its remainder is the Stieltjes bound and its rounding term is
-  counted.
+- O1 CLOSED at rev 7 (B2), and the inheritance chain with it. The theta
+  series remainder above t0 is PROVEN: MATHS.md D1b reduces it exactly to
+  Hermite's expansion of log Gamma(z + 1/2) at arg z = pi/2 and bounds it by
+  Nemes (2013b) Theorem 4, valid for Re z >= 0. The 1.000115 the old
+  confirmer measured is now a corollary, 1 + c8/(c7 t^2) + O(t^-4), not a
+  calibration. Stage 4b's RS path inherits a proven bound, and stage 6's
+  verifier premise ("published theta bounds") is now TRUE: the bound is
+  published, cited, and shipped. The prediction recorded here at rev 6, that
+  "a Stirling sector bound will not do it", was half right: no n-independent
+  first-omitted-term multiplier exists at the axis (Nemes p. 165), but the
+  shifted-index Spira-type bound does it without Gabcke's per-term constants,
+  and lands 4x TIGHTER than the retired factor, not looser.
+- The sub-t0 path never carried the assumption. D8 has no safety factor
+  anywhere; as of rev 7 neither does any other part of theta.
 
 ## Stage 4 rev 7 Part A (make rev 6 reviewable)
 

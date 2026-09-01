@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 
 namespace zetaforge {
@@ -31,7 +32,22 @@ constexpr RationalCoeff kCRat[kThetaTerms] = {
     {1414477ULL, 1476034560ULL},   // per MATHS.md D1
 };
 constexpr double kC7 = 8191.0 / 2555904.0;      // first omitted magnitude
-constexpr double kC8 = 0.014774875890195759;    // next magnitude estimate
+// Upper bound on |B_16|/15 = 3617/7650 = 0.47281045751633986...: the literal
+// exceeds the exact rational (MATHS.md D1b.7), so evaluating the certified
+// tail term in double arithmetic cannot round the proven bound below the
+// truth. The retired kC8 estimate served the factor-4 policy and left with it.
+constexpr double kThetaTailB16 = 0.4728105;
+// Evaluation guard for D1b.7: the certified truncation term is evaluated in
+// double arithmetic, and its structural surplus (the tail literal's excess)
+// decays as 1/t^2 while double rounding is a constant ~1e-15 relative, so
+// above t ~ 1.6e5 the surplus alone no longer dominates the rounding. The
+// guard multiplies the whole term by 1 + 2^-40 (~9.1e-13 relative, three
+// orders above worst-case accumulated rounding including a 1-ulp libm pow,
+// and 0.0000000001 percent of radius cost), making the double-evaluated
+// bound exceed the proven bound at EVERY height. Found by the L12 margin
+// instrumentation at rev 7: without it the measured enclosure margin at the
+// corpus top was 3.5e-16, one libm rounding from a miss.
+constexpr double kThetaEvalGuard = 1.0 + 0x1p-40;
 
 
 struct MpfrGuard {
@@ -300,12 +316,26 @@ Ball theta_certified(double t, mpfr_prec_t prec) {
     }
   }
 
-  // Certified radius: three explicit components, each derived in MATHS.md D1:
-  //   (i)   series remainder: SAFETY * (|c7| + |c8|/t^2) / t^13
+  // Certified radius: three explicit components.
+  //   (i)   series remainder: the PROVEN bound of MATHS.md D1b,
+  //             |E| <= c7/t^13 + (|B16|/15)/t^15 + (1/2) e^{-pi t},
+  //         every t > 0 (Nemes 2013b Thm 4 at arg z = pi/2 after the exact
+  //         reduction D1b-4). NO safety factor: the empirical kThetaSafety=4
+  //         that stood from stage 3 to rev 6 is retired with O1's closure,
+  //         and the proven bound is 3.99x TIGHTER than the policy it
+  //         replaces. The e-term is enclosed by 2^-floor(4t) since
+  //         pi/ln2 > 4, clamped to the smallest subnormal so it never
+  //         vanishes to a false zero (D1b.4, D1b.7).
   //   (ii)  mpfr rounding of the whole evaluation at working precision
   //   (iii) coefficient representation error from parsing rationals at p
   const double t2 = t * t;
-  const double rem_base = (kC7 + kC8 / t2) / std::pow(t, 13.0);
+  const double p13 = std::pow(t, 13.0);
+  const double e4 = 4.0 * t;
+  const double eterm =
+      e4 >= 1074.0 ? std::numeric_limits<double>::denorm_min()
+                   : std::ldexp(1.0, -static_cast<int>(e4));
+  const double rem_proven =
+      (kC7 / p13 + kThetaTailB16 / (p13 * t2) + eterm) * kThetaEvalGuard;
   const double mag_d = std::fabs(mpfr_get_d(acc.v, MPFR_RNDN));
   const double mpfr_slack = (mag_d > 0.0 ? mag_d : 1.0)
                             * std::ldexp(1.0, static_cast<int>(-(prec - 2)));
@@ -313,7 +343,7 @@ Ball theta_certified(double t, mpfr_prec_t prec) {
   // carries <= c_k * 2^(1-p); dominant term is c_1/t.
   const double coeff_slack = std::ldexp(1.0, static_cast<int>(1 - prec))
                              * ((1.0 / 48.0) / t) * (1.0 + 1e-3);
-  double radius = kThetaSafety * rem_base + mpfr_slack + coeff_slack;
+  double radius = rem_proven + mpfr_slack + coeff_slack;
   // Compile-time gated falsifiability hook; an inline 1.0 in production
   // builds (zetaforge/sabotage.hpp). Never reads the environment here.
   radius *= zf_radius_sabotage_scale();

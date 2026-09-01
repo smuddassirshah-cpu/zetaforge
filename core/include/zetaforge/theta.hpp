@@ -17,11 +17,15 @@
 // is defined for every finite t > 0 and throws only for t <= 0 or non-finite
 // input.
 //
-// Radius claim (D1): |true - centre| <= radius where radius carries the
-// certified remainder bound |c7|/t^13 + |c8|/t^15 times kThetaSafety (4)
-// plus mpfr rounding slack at the working precision. The factor 4 headroom
-// stands in for Gabcke's exact per-term constants; transcribing those to
-// shrink it is MATHS.md open item O1.
+// Radius claim (D1, proven by D1b): |true - centre| <= radius where radius
+// carries the PROVEN series remainder bound
+//     c7/t^13 + (|B16|/15)/t^15 + (1/2) e^{-pi t}
+// (Nemes, Appl. Anal. Discrete Math. 7 (2013), Thm 4, after the exact
+// reduction of the series remainder to Hermite's expansion at arg z = pi/2;
+// MATHS.md D1b) plus mpfr rounding slack at the working precision and the
+// coefficient representation term. There is no safety factor anywhere in
+// theta: the empirical kThetaSafety = 4 of stage 3 was retired at rev 7 when
+// O1 closed, superseded by a bound both proven and tighter.
 
 #include <mpfr.h>
 
@@ -31,7 +35,6 @@ namespace zetaforge {
 
 constexpr double kThetaTMin = 200.0;
 constexpr int kThetaTerms = 6;
-constexpr double kThetaSafety = 4.0;
 
 // Throws std::domain_error for t <= 0 and std::invalid_argument for
 // non-finite t.
