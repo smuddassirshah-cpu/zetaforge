@@ -137,6 +137,19 @@ Running log. One line each: date, decision, reason, PLAN.md deviation? y/n.
   the moment CI was allowed to run. The permanent guard is the CI Linux leg
   itself, now triggered on the revision branches, n
 
+- 2026-09-01 (rev 7 B, A11), The mutation-residue auditor is now a versioned
+  instrument: tools/audit_mutation_residue.py, with the recorded incident
+  951bfd9 carried as a waiver that doubles as the positive control (--self-test
+  fails if the tool stops flagging it), and a CI leg mutation-residue-audit
+  running both the self-test and the full-history audit on every push. The A2
+  verdict at rev 7 Part A was issued by an unversioned script, which is the
+  drift this apparatus exists to prevent, n
+- 2026-09-01 (rev 7 B, A12), ATTACKS.md rule added: when the battery commit
+  and the branch tip differ, the record must name the battery commit, list the
+  intervening commits, and show they touch records alone; otherwise the
+  battery is re-run. The Part A record (battery at 129cf18, tip 956bb12) is
+  brought into compliance retroactively, n
+
 
 ## Open questions
 Anything blocking or deferred, with the stage it affects.
