@@ -206,10 +206,21 @@ static int run_suite() {
         ZF_CHECK(r.im.contains_zero());
 
         // L-D: the EM tail bound must be Backlund's, at the pinned (N, M).
+        //
+        // Band history (rev 7, B3). Through rev 6 this accepted any ratio in
+        // (0.99, 1.01) while the measured production/transcription agreement
+        // was ratio - 1 = 0.0 exactly, at every one of the 40 combos: both
+        // sides are deterministic mpfr sequences landing on the same double.
+        // A one percent band over an exact agreement meant NO transcription
+        // drift below one percent could ever fail this layer, so it was not a
+        // test of its own transcription. The band is now 1e-12: eight orders
+        // tighter than row 26's pre-registered 1e-4 perturbation, four orders
+        // looser than any benign last-bit divergence could reach, and honest
+        // about what the layer actually measures.
         const double expect = backlund_transcribed(h, r.em_n, r.em_m);
         const double ratio = r.em_tail_bound / expect;
         if (ratio > worst_policy) worst_policy = ratio;
-        const bool policy_ok = ratio > 0.99 && ratio < 1.01;
+        const bool policy_ok = std::fabs(ratio - 1.0) <= 1e-12;
         if (!policy_ok) {
           ++policy_failures;
           std::printf("LD_POLICY t=%.17g N=%d M=%d ours=%.6g expect=%.6g "
@@ -223,7 +234,7 @@ static int run_suite() {
     std::fprintf(stdout, "LA_EVALUATED %d\n", evaluated);
     std::fprintf(stdout, "LA_ENCLOSURE_FAILURES %d\n", enclosure_failures);
     std::fprintf(stdout, "LC_IMAGINARY_FAILURES %d\n", im_failures);
-    std::fprintf(stdout, "LD_POLICY_FAILURES %d max_ratio %.6f\n",
+    std::fprintf(stdout, "LD_POLICY_FAILURES %d max_ratio %.17g\n",
                  policy_failures, worst_policy);
   }
 

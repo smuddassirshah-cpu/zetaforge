@@ -1,0 +1,13 @@
+diff --git a/core/tests/test_zeta.cpp b/core/tests/test_zeta.cpp
+index 79d242e..f930fe8 100644
+--- a/core/tests/test_zeta.cpp
++++ b/core/tests/test_zeta.cpp
+@@ -151,7 +151,7 @@ double backlund_transcribed(double t, long n, int m) {
+   mpfr_set_d(tmp, 0.5 + shift, MPFR_RNDD);
+   mpfr_div(acc, acc, tmp, MPFR_RNDU);
+ 
+-  const double out = mpfr_get_d(acc, MPFR_RNDU);
++  const double out = 1.0001 * mpfr_get_d(acc, MPFR_RNDU);  /* transcription perturbed: ATTACKS.md row 26 */
+   mpfr_clears(acc, tmp, term, static_cast<mpfr_ptr>(nullptr));
+   return out;
+ }
