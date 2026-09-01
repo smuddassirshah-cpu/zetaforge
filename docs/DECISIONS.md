@@ -133,6 +133,17 @@ interviewer's first follow-up is always "compared to what?".
 
 ### Stage 4 additions
 
+- 2026-09-01 (stage 4 rev 7, B3). L-D's policy band replaced. As shipped at
+  rev 6 the layer accepted any production/transcription ratio in (0.99, 1.01)
+  while the measured agreement was ratio - 1 = 0.0 exactly at all 40 combos:
+  both sides are deterministic mpfr sequences landing on the same double, so
+  no transcription drift below one percent could ever fail the layer and it
+  was not a test of its own transcription (the row-10 lesson, unapplied). The
+  band is now |ratio - 1| <= 1e-12, matched to the measured agreement with
+  four orders of headroom, and ATTACKS.md row 26 (pre-registered at 428f2a4,
+  before this change) perturbs the transcription by 1e-4 and is detected,
+  measured exit 1 at every combo. The production side was already covered by
+  row 16; the test side was covered by nothing until this row.
 - 2026-09-01 (stage 4 rev 7, B1). The rev 6 Ffix error-composition overflow is
   promoted from a deviation note to a finding with the R6-1 treatment. The
   concrete pair: a = (raw 2^119, err 2^126) times b = (raw 2^8, err 2^126).
