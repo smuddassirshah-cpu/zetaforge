@@ -235,7 +235,9 @@ struct CBall {
     mpfr_clear(nim);
   }
 
-  // Multiply by a real ball (centre cf, radius cfr).
+  // Multiply by a real ball (centre cf, radius cfr). Derivation of record:
+  // MATHS.md D7c (enclosure D7c.2, corner attainment D7c.3, and the retired
+  // shared-term story D7c.4).
   //
   //   |dev Re| <= |re| cfr + rr |cf| + rr cfr
   //   |dev Im| <= |im| cfr + ri |cf| + ri cfr
