@@ -88,36 +88,56 @@ tell the two measurements apart.
 Baseline column: outcome measured at 33615d4, before the rev 5 repairs.
 Rev 5 column: measured at the rev 5 gate battery on 2026-08-24 by hand.
 Rev 6 column: measured by tools/gate_battery.sh at commit 9619804 on
-Darwin 25.6.0 arm64, Apple clang 17.0.0, cmake 4.4.0. 24 rows, 24 PASS, tree
-diff-clean after every row. The script's verbatim output is the gate evidence
-and it is what the CI leg "gate-battery" reruns on every push to main.
+Darwin 25.6.0 arm64, Apple clang 17.0.0, cmake 4.4.0. Reported at the time as
+"24 rows, 24 PASS". Under the rev 7 counting that reads rows=24 detect=22
+null=2 fail=0: two of those 24 passes were null rows asserting that nothing
+happens, and calling them detections overstated the suite by two.
+Rev 7 column: measured by tools/gate_battery.sh at commit 129cf18, in a FRESH
+CLONE OF ORIGIN in a scratch directory, on Darwin 25.6.0 arm64, Apple clang
+17.0.0, cmake 4.4.0. rows=24 detect=22 null=2 fail=0, tree diff-clean after
+every row. No figure in this column comes from a pre-existing build tree; the
+clone was made from origin at the pushed sha and every row rebuilds from
+scratch inside it.
+
+Reproduced independently on a second toolchain for the first time in this
+project: the CI leg gate-battery at 129cf18 on Linux 6.17 x86_64 with GCC
+13.3.0 and cmake 3.31.6 reports rows=24 detect=22 null=2 fail=0, row for row
+identical to the Darwin arm64 / Apple clang 17.0.0 run above (CI run
+33531659601). Every measurement in this ledger before rev 7 came from one host,
+one compiler and one standard library.
+
+The same battery on Linux, in CI, is a different matter and the ledger says so:
+at 4bcb165 the gate-battery leg reported rows=24 detect=1 null=0 fail=23,
+because the tree did not compile under libstdc++ at all and 23 rows died at the
+build step rather than at the assertion they were written to test. That is the
+first CI execution this repository has ever had. It is fixed at 129cf18.
 
 | # | Mutation | Patch | Configure | Command | Expected | Baseline (33615d4) | Rev 5 measured | Rev 6 measured | Rev 7 measured |
 |---|---|---|---|---|---|---|---|---|---|
-| 1 | radius.hpp round_up_positive sticky bump removed | 01-radius-sticky.patch | - | $B/core/test_radius | 1 | DETECTED (exit 1) | DETECTED (exit 1, radius_exact) | DETECTED (exit 1) | TO BE MEASURED |
-| 2 | theta.cpp truncation term x0.5 | 02-theta-truncation-half.patch | - | $B/core/test_theta | 1 | DETECTED (exit 1, via L3) | DETECTED (exit 1, via L3) | DETECTED (exit 1) | TO BE MEASURED |
-| 3 | Bernoulli numerator corrupted in the committed tripwire table | 03-bernoulli-corrupt.patch | - | $B/core/test_theta | 1 | UNDETECTED (exit 0) | UNDETECTED (exit 0), accepted | DETECTED (exit 1, test_theta) after the duplicate table was removed | TO BE MEASURED |
-| 4 | cball mul radius x0.9 | 04-cball-mul-radius-0.9.patch | - | $B/core/test_cball | 1 | UNDETECTED (exit 0) | DETECTED (exit 1) | DETECTED (exit 1) | TO BE MEASURED |
-| 5 | cball mul radius x0.5 | 05-cball-mul-radius-0.5.patch | - | $B/core/test_cball | 1 | UNDETECTED (exit 0) | DETECTED (exit 1) | DETECTED (exit 1) | TO BE MEASURED |
-| 6 | cball mul radius x0.25 | 06-cball-mul-radius-0.25.patch | - | $B/core/test_cball | 1 | DETECTED (exit 1) | DETECTED (exit 1) | DETECTED (exit 1) | TO BE MEASURED |
-| 7 | em_eval returns Ball 0.0 as Certified (rev 0 defect) | 07-em-certified-zero.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | UNDETECTED (exit 0, suite green) | DETECTED (exit 1, 36 enclosure failures) | DETECTED (exit 1) | TO BE MEASURED |
-| 8 | ZF_IMPL_RADIUS_SCALE=0.1, hooks ON | - | -DZF_SABOTAGE_HOOKS=ON | ZF_IMPL_RADIUS_SCALE=0.1 $B/core/test_theta | 1 | UNDETECTED (channel dead) | DETECTED (exit 1) | DETECTED (exit 1) | TO BE MEASURED |
-| 9 | ZF_IMPL_RADIUS_SCALE=0.1, hooks OFF | - | - | ZF_IMPL_RADIUS_SCALE=0.1 $B/core/test_theta | 0 | n/a (channel dead) | no effect (exit 0), as required | no effect (exit 0), as required | TO BE MEASURED |
-| 10 | ZF_TEST_BOUND_SCALE=0.9 | - | - | ZF_TEST_BOUND_SCALE=0.9 $B/core/test_theta | 1 | DETECTED (exit 1) | DETECTED (exit 1) | DETECTED (exit 1) | TO BE MEASURED |
-| 11 | golden corpus, one line dropped | 11-golden-line-dropped.patch | - | $B/core/test_theta | 1 | UNDETECTED (exit 0) | DETECTED (exit 1, combos 80 < 84) | DETECTED (exit 1) | TO BE MEASURED |
-| 12 | golden corpus, one digit flipped | 12-golden-digit-flipped.patch | - | $B/core/test_theta | 1 | DETECTED (exit 1) | DETECTED (exit 1) | DETECTED (exit 1) | TO BE MEASURED |
-| 13 | Ball::parse("1e-320") claims radius 0 | 13-parse-false-exact.patch | - | $B/core/test_ball | 1 | UNDETECTED (no such test) | DETECTED (exit 1, test_ball) | DETECTED (exit 1) | TO BE MEASURED |
-| 14 | Ffix::mul(2^32, 2^32) wraps to raw 0 | 14-ffix-mul-wrap.patch | - | $B/core/test_ffix | 1 | UNDETECTED (no such test) | DETECTED (exit 1, test_ffix) | DETECTED (exit 1) | TO BE MEASURED |
-| 15 | environment read in core/src outside sabotage.cpp | 15-getenv-injected.patch | (no build) | tools/check_no_env_knobs.sh | 1 | n/a (no guard existed) | GUARD FAILS as required | GUARD FAILS as required (exit 1) | TO BE MEASURED |
-| 16 | EM remainder: Backlund factor abs(s+2M+1)/(sigma+2M+1) replaced by 1 | 16-backlund-factor-one.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (no EM path) | n/a (no EM path) | DETECTED (exit 1, L-D) | TO BE MEASURED |
-| 17 | EM Dirichlet sum truncated below the pinned N, radius left unchanged | 17-em-short-sum.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (no EM path) | n/a (no EM path) | DETECTED (exit 1, L-A) | TO BE MEASURED |
-| 18 | Z assembly: cos and sin swapped (theta sign convention flipped) | 18-z-sincos-swap.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (no EM path) | n/a (no EM path) | DETECTED (exit 1) | TO BE MEASURED |
-| 19 | L-C removed: the imaginary-part-contains-zero assertion deleted from test_zeta | 19-lc-disabled.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 0 | n/a (no EM path) | n/a (no EM path) | UNDETECTED (exit 0), as pre-registered | TO BE MEASURED |
-| 20 | L-B gamma_1 bracket endpoints swapped in test_zeta | 20-lb-bracket-swap.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (no EM path) | n/a (no EM path) | DETECTED (exit 1, L-B) | TO BE MEASURED |
-| 21 | Stirling sector guard removed: m no longer raised to keep arg w inside pi/4 | 21-stirling-sector.patch | - | $B/core/test_theta | 1 | n/a (no sub-t0 path) | n/a (no sub-t0 path) | DETECTED (exit 1, L6) after the layer L6 was added; see below | TO BE MEASURED |
-| 22 | Bernoulli recurrence index shifted by one | 22-bernoulli-index.patch | - | $B/core/test_theta | 1 | n/a (no recurrence) | n/a (no recurrence) | DETECTED (exit 1, L5) | TO BE MEASURED |
-| 23 | sub-t0 golden corpus, one digit flipped | 23-subt0-golden-digit.patch | - | $B/core/test_theta | 1 | n/a (no corpus) | n/a (no corpus) | DETECTED (exit 1, L2b) | TO BE MEASURED |
-| 24 | Ffix error composition wraps instead of saturating | 24-ffix-err-wrap.patch | - | $B/core/test_ffix | 1 | n/a (no such test) | n/a (no such test) | DETECTED (exit 1) | TO BE MEASURED |
+| 1 | radius.hpp round_up_positive sticky bump removed | 01-radius-sticky.patch | - | $B/core/test_radius | 1 | DETECTED (exit 1) | DETECTED (exit 1, radius_exact) | DETECTED (exit 1) | DETECTED (exit 1), PASS, tree-clean=yes |
+| 2 | theta.cpp truncation term x0.5 | 02-theta-truncation-half.patch | - | $B/core/test_theta | 1 | DETECTED (exit 1, via L3) | DETECTED (exit 1, via L3) | DETECTED (exit 1) | DETECTED (exit 1), PASS, tree-clean=yes |
+| 3 | Bernoulli numerator corrupted in the committed tripwire table | 03-bernoulli-corrupt.patch | - | $B/core/test_theta | 1 | UNDETECTED (exit 0) | UNDETECTED (exit 0), accepted | DETECTED (exit 1, test_theta) after the duplicate table was removed | DETECTED (exit 1), PASS, tree-clean=yes |
+| 4 | cball mul radius x0.9 | 04-cball-mul-radius-0.9.patch | - | $B/core/test_cball | 1 | UNDETECTED (exit 0) | DETECTED (exit 1) | DETECTED (exit 1) | DETECTED (exit 1), PASS, tree-clean=yes |
+| 5 | cball mul radius x0.5 | 05-cball-mul-radius-0.5.patch | - | $B/core/test_cball | 1 | UNDETECTED (exit 0) | DETECTED (exit 1) | DETECTED (exit 1) | DETECTED (exit 1), PASS, tree-clean=yes |
+| 6 | cball mul radius x0.25 | 06-cball-mul-radius-0.25.patch | - | $B/core/test_cball | 1 | DETECTED (exit 1) | DETECTED (exit 1) | DETECTED (exit 1) | DETECTED (exit 1), PASS, tree-clean=yes |
+| 7 | em_eval returns Ball 0.0 as Certified (rev 0 defect) | 07-em-certified-zero.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | UNDETECTED (exit 0, suite green) | DETECTED (exit 1, 36 enclosure failures) | DETECTED (exit 1) | DETECTED (exit 1), PASS, tree-clean=yes |
+| 8 | ZF_IMPL_RADIUS_SCALE=0.1, hooks ON | - | -DZF_SABOTAGE_HOOKS=ON | ZF_IMPL_RADIUS_SCALE=0.1 $B/core/test_theta | 1 | UNDETECTED (channel dead) | DETECTED (exit 1) | DETECTED (exit 1) | DETECTED (exit 1), PASS, tree-clean=yes |
+| 9 | ZF_IMPL_RADIUS_SCALE=0.1, hooks OFF | - | - | ZF_IMPL_RADIUS_SCALE=0.1 $B/core/test_theta | 0 | n/a (channel dead) | no effect (exit 0), as required | no effect (exit 0), as required | NULL ROW, no effect (exit 0), as pre-registered, PASS, tree-clean=yes |
+| 10 | ZF_TEST_BOUND_SCALE=0.9 | - | - | ZF_TEST_BOUND_SCALE=0.9 $B/core/test_theta | 1 | DETECTED (exit 1) | DETECTED (exit 1) | DETECTED (exit 1) | DETECTED (exit 1), PASS, tree-clean=yes |
+| 11 | golden corpus, one line dropped | 11-golden-line-dropped.patch | - | $B/core/test_theta | 1 | UNDETECTED (exit 0) | DETECTED (exit 1, combos 80 < 84) | DETECTED (exit 1) | DETECTED (exit 1), PASS, tree-clean=yes |
+| 12 | golden corpus, one digit flipped | 12-golden-digit-flipped.patch | - | $B/core/test_theta | 1 | DETECTED (exit 1) | DETECTED (exit 1) | DETECTED (exit 1) | DETECTED (exit 1), PASS, tree-clean=yes |
+| 13 | Ball::parse("1e-320") claims radius 0 | 13-parse-false-exact.patch | - | $B/core/test_ball | 1 | UNDETECTED (no such test) | DETECTED (exit 1, test_ball) | DETECTED (exit 1) | DETECTED (exit 1), PASS, tree-clean=yes |
+| 14 | Ffix::mul(2^32, 2^32) wraps to raw 0 | 14-ffix-mul-wrap.patch | - | $B/core/test_ffix | 1 | UNDETECTED (no such test) | DETECTED (exit 1, test_ffix) | DETECTED (exit 1) | DETECTED (exit 1), PASS, tree-clean=yes |
+| 15 | environment read in core/src outside sabotage.cpp | 15-getenv-injected.patch | (no build) | tools/check_no_env_knobs.sh | 1 | n/a (no guard existed) | GUARD FAILS as required | GUARD FAILS as required (exit 1) | DETECTED (exit 1), PASS, tree-clean=yes |
+| 16 | EM remainder: Backlund factor abs(s+2M+1)/(sigma+2M+1) replaced by 1 | 16-backlund-factor-one.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (no EM path) | n/a (no EM path) | DETECTED (exit 1, L-D) | DETECTED (exit 1), PASS, tree-clean=yes |
+| 17 | EM Dirichlet sum truncated below the pinned N, radius left unchanged | 17-em-short-sum.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (no EM path) | n/a (no EM path) | DETECTED (exit 1, L-A) | DETECTED (exit 1), PASS, tree-clean=yes |
+| 18 | Z assembly: cos and sin swapped (theta sign convention flipped) | 18-z-sincos-swap.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (no EM path) | n/a (no EM path) | DETECTED (exit 1) | DETECTED (exit 1), PASS, tree-clean=yes |
+| 19 | L-C removed: the imaginary-part-contains-zero assertion deleted from test_zeta | 19-lc-disabled.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 0 | n/a (no EM path) | n/a (no EM path) | UNDETECTED (exit 0), as pre-registered | NULL ROW, no effect (exit 0), as pre-registered, PASS, tree-clean=yes |
+| 20 | L-B gamma_1 bracket endpoints swapped in test_zeta | 20-lb-bracket-swap.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (no EM path) | n/a (no EM path) | DETECTED (exit 1, L-B) | DETECTED (exit 1), PASS, tree-clean=yes |
+| 21 | Stirling sector guard removed: m no longer raised to keep arg w inside pi/4 | 21-stirling-sector.patch | - | $B/core/test_theta | 1 | n/a (no sub-t0 path) | n/a (no sub-t0 path) | DETECTED (exit 1, L6) after the layer L6 was added; see below | DETECTED (exit 1), PASS, tree-clean=yes |
+| 22 | Bernoulli recurrence index shifted by one | 22-bernoulli-index.patch | - | $B/core/test_theta | 1 | n/a (no recurrence) | n/a (no recurrence) | DETECTED (exit 1, L5) | DETECTED (exit 1), PASS, tree-clean=yes |
+| 23 | sub-t0 golden corpus, one digit flipped | 23-subt0-golden-digit.patch | - | $B/core/test_theta | 1 | n/a (no corpus) | n/a (no corpus) | DETECTED (exit 1, L2b) | DETECTED (exit 1), PASS, tree-clean=yes |
+| 24 | Ffix error composition wraps instead of saturating | 24-ffix-err-wrap.patch | - | $B/core/test_ffix | 1 | n/a (no such test) | n/a (no such test) | DETECTED (exit 1) | DETECTED (exit 1), PASS, tree-clean=yes |
 
 ## Null rows and the invariants they leave unguarded
 
