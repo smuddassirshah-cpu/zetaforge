@@ -318,7 +318,8 @@ sits inside the stage creating the exposure.
 | 1 | Scaffolding + CI | Build matrix green (C++ core via CTest, Rust crate, Python package); gitleaks + pip-audit + cargo-audit wired; conditional GPU smoke job defined against a self-hosted runner label; Class-B floor active from commit zero; docs/DECISIONS.md and docs/MATHS.md skeletons present; .env.example covers every provider named in section 7; CITATION.cff validates; data licence decided |
 | 2 | core/ball+ffix+ntt | Property tests vs Arb on randomised suites; O(n log n) benchmark recorded in docs/benchmarks |
 | 3 | theta | Matches mpmath to required digits; truncation-bound proofs written in docs/MATHS.md and numerically tested |
-| 4 | rs_main+rs_corr+em_eval | gamma_1 = 14.1347 reproduced via the Euler-Maclaurin path; RS path certified above threshold t0 pinned at stage 3 from Arias de Reyna's published validity bounds; Z(t) matches Arb reference within certified radii on the overlap region |
+| 4 | em_eval (EM path) | gamma_1 = 14.1347 reproduced via the Euler-Maclaurin path; certified theta and certified Z(t) over the EM domain, stated as explicit intervals in MATHS.md D9 (unconditional on 0 < t < t0, conditional on open item O1 from t0 up); Z(t) matches an Arb reference within certified radii on the EM side of the overlap region |
+| 4b | rs_main+rs_corr (RS path) | RS path certified above threshold t0 pinned at stage 3 from Arias de Reyna's published validity bounds; MATHS.md D3 (correction-series remainder bound at campaign precision) written and numerically tested; RS and EM agree within combined certified radii on the overlap band [t0, kEmTMax] = [200, 400]; the RS path owns every t > kEmTMax = 400, a range NO component in the tree covers until this stage lands |
 | 5 | multipoint+signs+turing | End-to-end certified verification of [0,10^6] (~1.75M zeros including Gram-block failures); certificates emitted; early isolation-factor estimate measured from the evaluations-per-zero ratio over this window and recorded against the 2x reserve (low-height figure, not the campaign-height number, but bounds the D6 risk six stages before stage 9(a-i)) |
 | 6 | verifier (Rust) | Accepts stage-5 chain; mutation tests detect every single-bit flip; fuzz clean |
 | 7 | gpu + parity | Bit-compatible with the CPU path on one pinned arch; benchmark priced in dollars per million zeros against a PINNED 64-core CPU reference node (not a single core), throughput ratio reported alongside; the economic verdict feeds the ledger, it is not assumed. CUDA determinism obligations: extend the configure-time fast-math guard to CMAKE_CUDA_FLAGS*; nvcc -use_fast_math forbidden; --fmad=false mandatory (nvcc defaults to fmad=true, the CUDA analogue of fp-contract and the most likely cause of a parity failure) |
@@ -326,6 +327,20 @@ sits inside the stage creating the exposure.
 | 9 | Ground truth + pilot on cloud | Two gates, because no single source covers both axes: (a-i) ordinate diff: recompute a window at or below 3.06x10^10 and diff zero ordinates against the LMFDB-hosted Platt dataset (103,800,788,359 zeros to 30,610,046,000 at +/-2^-102): diff must be EMPTY; validates the stack zero-by-zero but 100x below campaign height; also measures the real isolation cost factor for the ledger. (a-ii) count consistency at H0: our independently computed Turing prediction and observed sign-change accounting must agree with the published endpoint 12,363,153,437,138 within the explicit S(T) bound used; full campaign height, count-level only. (b) pilot window computed to measure cost-per-height and pin final D against the ledger; chain green throughout; data archived |
 | 10 | Main campaign [H0, H0+D] | Hard preconditions: stage 9(a-i) diff empty AND stage 9(a-ii) consistent. Boundary continuity vs Platt-Trudgian; full chain verified; contested blocks resolved |
 | 11 | Analysis + release | Notebooks reproduce figures from released data alone; archival per section 5 tiers (Zenodo concept DOI cluster as integrity anchor, bulk ordinates via Academic Torrents plus object storage); CC0 dataset metadata published; pre-push gate passed |
+
+Stage 4 / 4b split (rev 7, deviation): the original row 4 named
+rs_main+rs_corr+em_eval together. The two are independent evaluation paths
+sharing only core/ball and theta, so the EM path is a standalone certified
+deliverable and does not depend on rs_main. STATE.md recorded the split at
+rev 6 and PLAN was deliberately not edited then, which left the two documents
+disagreeing; this section is now the split, and the disagreement is closed.
+The row text changes BEYOND a pure split and that is declared: the joint
+clause "Z(t) matches Arb reference within certified radii on the overlap
+region" had to be apportioned between the two paths, the RS/EM agreement
+obligation and D3 are made explicit in 4b where rev 6 left them implicit, the
+EM row now points at MATHS.md D9 for its domain rather than implying all t,
+and 4b is given explicit ownership of t > 400. Logged under Decisions in
+STATE.md.
 
 Counterexample protocol: a suspected off-line zero freezes the campaign,
 triggers a max-precision triple-check by an independent path, and publishes

@@ -18,6 +18,13 @@ Rules:
   inversions; every measurement here follows `rm -rf` on the build directory.
 - The measured column records the exit code actually observed, not the exit
   code expected.
+- A row is a DETECTION row or a NULL row, and the two are counted separately.
+  A detection row expects a non-zero exit: it asserts the suite notices the
+  mutation. A null row expects exit 0: it asserts that nothing happens, and it
+  can never fail because a defect made the suite pass. Reporting "24 rows,
+  24 PASS" counts null rows as detections and overstates what the battery
+  covers, so the footer now reads rows=N detect=D null=K fail=0 and every null
+  row carries, below, the invariant it leaves unguarded.
 - A row is executable, not narrative. tools/gate_battery.sh parses this file
   and runs every row; docs/gate/mutations/ holds the patches. A row that cannot
   be run from this table is not a row.
@@ -64,7 +71,17 @@ Field conventions:
   No cell may contain a `|`, escaped or not: the battery splits rows on it.
 - Expected: the exit code the row must produce. It is an assertion, not a
   prediction: a row whose real behaviour changes must have this column changed
-  in the same commit, which is what keeps the ledger honest.
+  in the same commit, which is what keeps the ledger honest. Expected 0 makes
+  the row a null row; anything else makes it a detection row.
+
+The battery prints, for every row, the build directory, the exact configure
+command line, whether core/src/sabotage.cpp was actually compiled into the
+library (measured from the object file, not restated from the flag), the full
+argv including its environment assignments, the expected and measured exits,
+and the tree-clean assertion. Through rev 6 it printed patch, command and exit
+only, so rows 8 and 9 - the same command against two differently configured
+builds, with OPPOSITE expected exits - printed identically and no reader could
+tell the two measurements apart.
 
 ## Matrix
 
@@ -75,32 +92,82 @@ Darwin 25.6.0 arm64, Apple clang 17.0.0, cmake 4.4.0. 24 rows, 24 PASS, tree
 diff-clean after every row. The script's verbatim output is the gate evidence
 and it is what the CI leg "gate-battery" reruns on every push to main.
 
-| # | Mutation | Patch | Configure | Command | Expected | Baseline (33615d4) | Rev 5 measured | Rev 6 measured |
-|---|---|---|---|---|---|---|---|---|
-| 1 | radius.hpp round_up_positive sticky bump removed | 01-radius-sticky.patch | - | $B/core/test_radius | 1 | DETECTED (exit 1) | DETECTED (exit 1, radius_exact) | DETECTED (exit 1) |
-| 2 | theta.cpp truncation term x0.5 | 02-theta-truncation-half.patch | - | $B/core/test_theta | 1 | DETECTED (exit 1, via L3) | DETECTED (exit 1, via L3) | DETECTED (exit 1) |
-| 3 | Bernoulli numerator corrupted in the committed tripwire table | 03-bernoulli-corrupt.patch | - | $B/core/test_theta | 1 | UNDETECTED (exit 0) | UNDETECTED (exit 0), accepted | DETECTED (exit 1, test_theta) after the duplicate table was removed |
-| 4 | cball mul radius x0.9 | 04-cball-mul-radius-0.9.patch | - | $B/core/test_cball | 1 | UNDETECTED (exit 0) | DETECTED (exit 1) | DETECTED (exit 1) |
-| 5 | cball mul radius x0.5 | 05-cball-mul-radius-0.5.patch | - | $B/core/test_cball | 1 | UNDETECTED (exit 0) | DETECTED (exit 1) | DETECTED (exit 1) |
-| 6 | cball mul radius x0.25 | 06-cball-mul-radius-0.25.patch | - | $B/core/test_cball | 1 | DETECTED (exit 1) | DETECTED (exit 1) | DETECTED (exit 1) |
-| 7 | em_eval returns Ball 0.0 as Certified (rev 0 defect) | 07-em-certified-zero.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | UNDETECTED (exit 0, suite green) | DETECTED (exit 1, 36 enclosure failures) | DETECTED (exit 1) |
-| 8 | ZF_IMPL_RADIUS_SCALE=0.1, hooks ON | - | -DZF_SABOTAGE_HOOKS=ON | ZF_IMPL_RADIUS_SCALE=0.1 $B/core/test_theta | 1 | UNDETECTED (channel dead) | DETECTED (exit 1) | DETECTED (exit 1) |
-| 9 | ZF_IMPL_RADIUS_SCALE=0.1, hooks OFF | - | - | ZF_IMPL_RADIUS_SCALE=0.1 $B/core/test_theta | 0 | n/a (channel dead) | no effect (exit 0), as required | no effect (exit 0), as required |
-| 10 | ZF_TEST_BOUND_SCALE=0.9 | - | - | ZF_TEST_BOUND_SCALE=0.9 $B/core/test_theta | 1 | DETECTED (exit 1) | DETECTED (exit 1) | DETECTED (exit 1) |
-| 11 | golden corpus, one line dropped | 11-golden-line-dropped.patch | - | $B/core/test_theta | 1 | UNDETECTED (exit 0) | DETECTED (exit 1, combos 80 < 84) | DETECTED (exit 1) |
-| 12 | golden corpus, one digit flipped | 12-golden-digit-flipped.patch | - | $B/core/test_theta | 1 | DETECTED (exit 1) | DETECTED (exit 1) | DETECTED (exit 1) |
-| 13 | Ball::parse("1e-320") claims radius 0 | 13-parse-false-exact.patch | - | $B/core/test_ball | 1 | UNDETECTED (no such test) | DETECTED (exit 1, test_ball) | DETECTED (exit 1) |
-| 14 | Ffix::mul(2^32, 2^32) wraps to raw 0 | 14-ffix-mul-wrap.patch | - | $B/core/test_ffix | 1 | UNDETECTED (no such test) | DETECTED (exit 1, test_ffix) | DETECTED (exit 1) |
-| 15 | environment read in core/src outside sabotage.cpp | 15-getenv-injected.patch | (no build) | tools/check_no_env_knobs.sh | 1 | n/a (no guard existed) | GUARD FAILS as required | GUARD FAILS as required (exit 1) |
-| 16 | EM remainder: Backlund factor abs(s+2M+1)/(sigma+2M+1) replaced by 1 | 16-backlund-factor-one.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (no EM path) | n/a (no EM path) | DETECTED (exit 1, L-D) |
-| 17 | EM Dirichlet sum truncated below the pinned N, radius left unchanged | 17-em-short-sum.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (no EM path) | n/a (no EM path) | DETECTED (exit 1, L-A) |
-| 18 | Z assembly: cos and sin swapped (theta sign convention flipped) | 18-z-sincos-swap.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (no EM path) | n/a (no EM path) | DETECTED (exit 1) |
-| 19 | L-C removed: the imaginary-part-contains-zero assertion deleted from test_zeta | 19-lc-disabled.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 0 | n/a (no EM path) | n/a (no EM path) | UNDETECTED (exit 0), as pre-registered |
-| 20 | L-B gamma_1 bracket endpoints swapped in test_zeta | 20-lb-bracket-swap.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (no EM path) | n/a (no EM path) | DETECTED (exit 1, L-B) |
-| 21 | Stirling sector guard removed: m no longer raised to keep arg w inside pi/4 | 21-stirling-sector.patch | - | $B/core/test_theta | 1 | n/a (no sub-t0 path) | n/a (no sub-t0 path) | DETECTED (exit 1, L6) after the layer L6 was added; see below |
-| 22 | Bernoulli recurrence index shifted by one | 22-bernoulli-index.patch | - | $B/core/test_theta | 1 | n/a (no recurrence) | n/a (no recurrence) | DETECTED (exit 1, L5) |
-| 23 | sub-t0 golden corpus, one digit flipped | 23-subt0-golden-digit.patch | - | $B/core/test_theta | 1 | n/a (no corpus) | n/a (no corpus) | DETECTED (exit 1, L2b) |
-| 24 | Ffix error composition wraps instead of saturating | 24-ffix-err-wrap.patch | - | $B/core/test_ffix | 1 | n/a (no such test) | n/a (no such test) | DETECTED (exit 1) |
+| # | Mutation | Patch | Configure | Command | Expected | Baseline (33615d4) | Rev 5 measured | Rev 6 measured | Rev 7 measured |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | radius.hpp round_up_positive sticky bump removed | 01-radius-sticky.patch | - | $B/core/test_radius | 1 | DETECTED (exit 1) | DETECTED (exit 1, radius_exact) | DETECTED (exit 1) | TO BE MEASURED |
+| 2 | theta.cpp truncation term x0.5 | 02-theta-truncation-half.patch | - | $B/core/test_theta | 1 | DETECTED (exit 1, via L3) | DETECTED (exit 1, via L3) | DETECTED (exit 1) | TO BE MEASURED |
+| 3 | Bernoulli numerator corrupted in the committed tripwire table | 03-bernoulli-corrupt.patch | - | $B/core/test_theta | 1 | UNDETECTED (exit 0) | UNDETECTED (exit 0), accepted | DETECTED (exit 1, test_theta) after the duplicate table was removed | TO BE MEASURED |
+| 4 | cball mul radius x0.9 | 04-cball-mul-radius-0.9.patch | - | $B/core/test_cball | 1 | UNDETECTED (exit 0) | DETECTED (exit 1) | DETECTED (exit 1) | TO BE MEASURED |
+| 5 | cball mul radius x0.5 | 05-cball-mul-radius-0.5.patch | - | $B/core/test_cball | 1 | UNDETECTED (exit 0) | DETECTED (exit 1) | DETECTED (exit 1) | TO BE MEASURED |
+| 6 | cball mul radius x0.25 | 06-cball-mul-radius-0.25.patch | - | $B/core/test_cball | 1 | DETECTED (exit 1) | DETECTED (exit 1) | DETECTED (exit 1) | TO BE MEASURED |
+| 7 | em_eval returns Ball 0.0 as Certified (rev 0 defect) | 07-em-certified-zero.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | UNDETECTED (exit 0, suite green) | DETECTED (exit 1, 36 enclosure failures) | DETECTED (exit 1) | TO BE MEASURED |
+| 8 | ZF_IMPL_RADIUS_SCALE=0.1, hooks ON | - | -DZF_SABOTAGE_HOOKS=ON | ZF_IMPL_RADIUS_SCALE=0.1 $B/core/test_theta | 1 | UNDETECTED (channel dead) | DETECTED (exit 1) | DETECTED (exit 1) | TO BE MEASURED |
+| 9 | ZF_IMPL_RADIUS_SCALE=0.1, hooks OFF | - | - | ZF_IMPL_RADIUS_SCALE=0.1 $B/core/test_theta | 0 | n/a (channel dead) | no effect (exit 0), as required | no effect (exit 0), as required | TO BE MEASURED |
+| 10 | ZF_TEST_BOUND_SCALE=0.9 | - | - | ZF_TEST_BOUND_SCALE=0.9 $B/core/test_theta | 1 | DETECTED (exit 1) | DETECTED (exit 1) | DETECTED (exit 1) | TO BE MEASURED |
+| 11 | golden corpus, one line dropped | 11-golden-line-dropped.patch | - | $B/core/test_theta | 1 | UNDETECTED (exit 0) | DETECTED (exit 1, combos 80 < 84) | DETECTED (exit 1) | TO BE MEASURED |
+| 12 | golden corpus, one digit flipped | 12-golden-digit-flipped.patch | - | $B/core/test_theta | 1 | DETECTED (exit 1) | DETECTED (exit 1) | DETECTED (exit 1) | TO BE MEASURED |
+| 13 | Ball::parse("1e-320") claims radius 0 | 13-parse-false-exact.patch | - | $B/core/test_ball | 1 | UNDETECTED (no such test) | DETECTED (exit 1, test_ball) | DETECTED (exit 1) | TO BE MEASURED |
+| 14 | Ffix::mul(2^32, 2^32) wraps to raw 0 | 14-ffix-mul-wrap.patch | - | $B/core/test_ffix | 1 | UNDETECTED (no such test) | DETECTED (exit 1, test_ffix) | DETECTED (exit 1) | TO BE MEASURED |
+| 15 | environment read in core/src outside sabotage.cpp | 15-getenv-injected.patch | (no build) | tools/check_no_env_knobs.sh | 1 | n/a (no guard existed) | GUARD FAILS as required | GUARD FAILS as required (exit 1) | TO BE MEASURED |
+| 16 | EM remainder: Backlund factor abs(s+2M+1)/(sigma+2M+1) replaced by 1 | 16-backlund-factor-one.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (no EM path) | n/a (no EM path) | DETECTED (exit 1, L-D) | TO BE MEASURED |
+| 17 | EM Dirichlet sum truncated below the pinned N, radius left unchanged | 17-em-short-sum.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (no EM path) | n/a (no EM path) | DETECTED (exit 1, L-A) | TO BE MEASURED |
+| 18 | Z assembly: cos and sin swapped (theta sign convention flipped) | 18-z-sincos-swap.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (no EM path) | n/a (no EM path) | DETECTED (exit 1) | TO BE MEASURED |
+| 19 | L-C removed: the imaginary-part-contains-zero assertion deleted from test_zeta | 19-lc-disabled.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 0 | n/a (no EM path) | n/a (no EM path) | UNDETECTED (exit 0), as pre-registered | TO BE MEASURED |
+| 20 | L-B gamma_1 bracket endpoints swapped in test_zeta | 20-lb-bracket-swap.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (no EM path) | n/a (no EM path) | DETECTED (exit 1, L-B) | TO BE MEASURED |
+| 21 | Stirling sector guard removed: m no longer raised to keep arg w inside pi/4 | 21-stirling-sector.patch | - | $B/core/test_theta | 1 | n/a (no sub-t0 path) | n/a (no sub-t0 path) | DETECTED (exit 1, L6) after the layer L6 was added; see below | TO BE MEASURED |
+| 22 | Bernoulli recurrence index shifted by one | 22-bernoulli-index.patch | - | $B/core/test_theta | 1 | n/a (no recurrence) | n/a (no recurrence) | DETECTED (exit 1, L5) | TO BE MEASURED |
+| 23 | sub-t0 golden corpus, one digit flipped | 23-subt0-golden-digit.patch | - | $B/core/test_theta | 1 | n/a (no corpus) | n/a (no corpus) | DETECTED (exit 1, L2b) | TO BE MEASURED |
+| 24 | Ffix error composition wraps instead of saturating | 24-ffix-err-wrap.patch | - | $B/core/test_ffix | 1 | n/a (no such test) | n/a (no such test) | DETECTED (exit 1) | TO BE MEASURED |
+
+## Null rows and the invariants they leave unguarded
+
+A null row is one whose Expected column is 0. It asserts that a change makes
+no difference, so it cannot fail because a defect made the suite pass, and it
+must never be counted as a detection. The battery footer counts them
+separately (rows=N detect=D null=K fail=0). There are two, and each is written
+out here with the invariant that is thereby unguarded.
+
+Row 9 - ZF_IMPL_RADIUS_SCALE=0.1 against a build configured WITHOUT
+-DZF_SABOTAGE_HOOKS.
+
+- What it asserts: a production-configured binary does not respond to the
+  sabotage knob. Under the new per-row format the build line shows
+  core/src/sabotage.cpp NOT COMPILED IN, which is the mechanism, measured from
+  the object file rather than restated from the flag.
+- Unguarded: row 9 says nothing about whether production radii are CORRECT. It
+  says only that they are unchanged by one environment variable. Every defect
+  that leaves the radius wrong but knob-insensitive passes this row.
+- Unguarded, second and sharper: row 9 also passes if the sabotage channel is
+  dead everywhere - if zf_radius_sabotage_scale() were removed from
+  theta.cpp's radius assembly, or the variable renamed, row 9 would still read
+  exit 0 and still PASS. It is row 8, the detection half of the pair, that
+  fails in that case. Row 9 alone is not evidence the channel exists; only the
+  8/9 pair is, and that pair is the only thing standing between this project
+  and the unreproducible stage 3 battery line recorded in STATE.md, where a
+  knob was reported as detecting through a channel that could not reach the
+  library.
+
+Row 19 - the L-C assertion deleted from core/tests/test_zeta.cpp.
+
+- What it asserts: nothing else in the suite covers the imaginary-part
+  cancellation invariant Im[e^{i theta} zeta] = 0 (MATHS.md D8.9).
+- Unguarded, stated plainly: NO ROW OF THIS SUITE DETECTS L-C BEING DISABLED.
+  Row 19 is measured UNDETECTED by design and by pre-registration, and it is
+  the only row that touches this invariant. A revision that deletes the L-C
+  assertion, or weakens it to a tautology, will produce a green default ctest
+  run, a green gate battery, and a footer reading fail=0.
+- What is lost when it goes: L-C is the single simultaneous check on theta's
+  branch (a slip moves theta by a nonzero multiple of 2 pi), on the sign
+  convention of the Z assembly (row 18's target), and on the zeta ball. L-A
+  compares only the real part against the FLINT oracle and L-D reads only the
+  tail bound, so neither sees the imaginary part at all.
+- Why it is kept single rather than duplicated: a second layer asserting the
+  same identity on the same evaluation would add coverage of nothing. The real
+  second opinion is a genuinely independent evaluation of the same identity,
+  which is what the RS path gives it. Owning stage: 4b.
+- Consequence accepted at this gate: the strongest structural check the EM
+  path carries is protected by pre-registration and by this paragraph, not by
+  any executable row.
 
 ## Accepted blind spots
 

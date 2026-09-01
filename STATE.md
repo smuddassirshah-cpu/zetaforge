@@ -91,6 +91,45 @@ Running log. One line each: date, decision, reason, PLAN.md deviation? y/n.
   -fno-sanitize-recover=all. Losing a CI leg in a branch switch is exactly the
   silent-decay failure the ledger exists to prevent, so it is logged rather than
   quietly re-added, n
+- 2026-09-01 (rev 7, A9), PLAN.md section 11 row 4 split into stage 4
+  (em_eval, EM path) and stage 4b (rs_main + rs_corr, RS path), closing the
+  disagreement rev 6 deliberately left between PLAN and STATE. The row text
+  changes BEYOND a pure split and that is the deviation: the joint clause
+  "Z(t) matches Arb reference within certified radii on the overlap region"
+  is apportioned between the two paths, D3 and the RS/EM agreement obligation
+  become explicit in row 4b, row 4 now points at MATHS.md D9 for its domain
+  instead of implying all t, and row 4b is given explicit ownership of
+  t > kEmTMax = 400, y
+- 2026-09-01 (rev 7, A7), Stage 4 DoD item 2 rewritten. It claimed certified
+  theta for every finite t > 0. Measured on a clean clone, every finite double
+  above 5.1283146231055239e305 is REFUSED, and the range at and above t0 is
+  certified only conditional on open item O1's unproven factor 4. Both halves
+  are corrected to explicit intervals (MATHS.md D9) rather than left standing,
+  y
+- 2026-09-01 (rev 7, A5/A6), Gate battery evidence format changed. Per row it
+  now prints the build directory, the exact configure command line, whether
+  core/src/sabotage.cpp was compiled into the library (measured from the object
+  file, not restated from the flag), the full argv including environment
+  assignments, expected and measured exits, and the tree-clean assertion. The
+  footer changes from rows=N pass=P fail=F to rows=N detect=D null=K fail=0,
+  because counting a null row as a pass inflates the detection count. Rows 8
+  and 9 previously printed identically while asserting opposite exits, n
+- 2026-09-01 (rev 7, A4), CI push trigger widened from main alone to main plus
+  stage4-rev* so the legs actually execute on the revision branch. The CI leg
+  had never run in this line of history: origin carried main at c243090 and
+  nothing else, and ci.yml triggers on push to main only, so R6-3 (gate-battery
+  leg) and R6-6 (sanitisers leg) were recorded as FIXED on the strength of
+  committed YAML that no runner had ever executed. Declared rather than folded
+  in, y
+- 2026-09-01 (rev 7, A3), The local clean-clone sanitiser configuration is
+  UBSan only, not ASan+UBSan as the CI leg specifies. AddressSanitizer is
+  unusable on this host: a program whose entire body is int main(){return 0;},
+  compiled with -fsanitize=address by Apple clang 17.0.0 on Darwin 25.6.0
+  arm64, spins in libsystem_malloc __malloc_init during dyld initialisation
+  and never reaches main. Isolated to the toolchain, not to this project. ASan
+  coverage therefore exists ONLY on the Linux CI leg, which raises rather than
+  lowers what A4 has to prove, y
+
 
 ## Open questions
 Anything blocking or deferred, with the stage it affects.
@@ -315,9 +354,76 @@ nothing is asserted in prose alone.
 | # | Item | Backed by | State |
 |---|---|---|---|
 | 1 | gamma_1 = 14.1347 reproduced via the Euler-Maclaurin path | test_zeta L-B: certified NEGATIVE at 14.1347251417, certified POSITIVE at 14.1347251418, sign change isolated in a bracket of width 1e-10 | green |
-| 2 | Certified theta for every finite t > 0 (MATHS.md D8) | test_theta L2b (112 combos, max err/radius 0.852895), L4 overlap against the independent series derivation (12 combos, max 0.250000), L6 sector invariant (44 combos, 0 violations) | green |
+| 2 | Certified theta on the intervals of MATHS.md D9, NOT on every finite t > 0: unconditionally certified on 0 < t < 200, certified conditional on open item O1 for 200 <= t <= 5.1283146231055239e305, refused outside those | test_theta L2b (112 combos, max err/radius 0.852895), L4 overlap against the independent series derivation (12 combos, max 0.250000), L6 sector invariant (44 combos, 0 violations), plus the 5 domain rejections | green below t0; CONDITIONAL above t0 |
 | 3 | Complex ball operation bounds (MATHS.md D7b) | test_cball C1 to C5: containment, cut detection at 0.9x and 0.5x over the full precision grid, tightness within 4x, and the precision rule | green |
 | 4 | Z(t) matches an independent reference within certified radii on the overlap region | test_zeta L-A against acb_dirichlet_hardy_z, 40 combinations, zero additive slack, plus L-C and L-D | green |
+
+### Component inventory of zetaforge_core (rev 7 A10)
+
+Measured from the archive of a clean-clone build, not read off CMakeLists.
+
+Compiled into zetaforge_core in the DEFAULT (production) configuration, four
+translation units:
+
+    core/src/ball.cpp
+    core/src/bernoulli.cpp
+    core/src/em_eval.cpp
+    core/src/theta.cpp
+
+A fifth is added only under -DZF_SABOTAGE_HOOKS=ON:
+
+    core/src/sabotage.cpp
+
+Header-only components, with no translation unit anywhere in the build:
+
+    core/include/zetaforge/cball.hpp     complex ball arithmetic (D7b)
+    core/include/zetaforge/ffix.hpp      fixed-point type with tracked error
+    core/include/zetaforge/ntt.hpp       number-theoretic transform
+    core/include/zetaforge/radius.hpp    outward-rounding radius primitives
+
+That they are header-only is load-bearing rather than incidental, and it is
+verified by the link rather than asserted: no object for any of the four
+appears in the archive, so a single out-of-line definition in any of them
+would be an undefined symbol in every test target.
+
+core/include/zetaforge/sabotage.hpp is a fifth header-only component IN
+PRODUCTION: with ZF_SABOTAGE_HOOKS off, zf_radius_sabotage_scale() is an inline
+1.0 and core/src/sabotage.cpp is not compiled at all. It is the only file in
+the tree permitted to read the environment, and gate battery row 15 plus the CI
+leg no-env-knobs enforce that.
+
+### Certified domain of the shipped entry points (rev 7 A7)
+
+Stated as intervals, measured on a clean clone rather than asserted. Full
+derivation and the reason for each boundary in MATHS.md D9.
+
+| Entry point | Certified unconditionally | Certified conditional on O1 | Refused |
+|---|---|---|---|
+| theta_certified(t, prec) | 0 < t < 200 | 200 <= t <= 5.1283146231055239e305 | t <= 0 (domain_error); non-finite t (invalid_argument); 5.1283146231055247e305 <= t <= DBL_MAX (invalid_argument) |
+| zeta_em(t, prec) | 0 < t < 200 | 200 <= t <= 400 | t <= 0 and non-finite t (invalid_argument); t > 400 (domain_error) |
+| Z(t) | 0 < t < 200 | 200 <= t <= 400 | as zeta_em: Z is ZResult.re and has no other producer |
+
+Two corrections this forces, both recorded rather than folded in silently.
+
+1. DoD item 2 said "every finite t > 0". That is false at the top: every finite
+   double above 5.1283146231055239e305 is refused, because |theta(t)| exceeds
+   DBL_MAX there and the mpfr rounding term of D8.7(ii), which is sized from
+   the centre read back through a double, evaluates to +inf. Refusing is the
+   sound behaviour; claiming the range was covered was not. The boundary does
+   not move with precision (measured identical at 64, 128, 256 and 512).
+2. "Certified" was one word covering two different things. Below t0 = 200 the
+   D8 log Gamma path carries no safety factor. At and above t0 the D1 series
+   carries kThetaSafety = 4, which O1 records as empirically calibrated and
+   load-bearing, not proven. The table above separates them, and Z inherits the
+   split through cos(theta) and sin(theta) on [200, 400].
+
+The 5 inputs test_theta refuses (0.0, -1.0, -1e-300, NaN, +inf) and 3 of the 8
+test_zeta refuses (0.0, -1.0, NaN) are NOT counterexamples to "finite t > 0":
+they are outside that hypothesis to begin with, three by not being positive and
+two by not being finite. They are the guard on the hypothesis. The remaining 5
+zeta refusals (401.0, 500.0, 1000.0, 5000.0, 20000.0) are the ceiling of
+D8.10 asserted as a refusal, so kEmTMax cannot be raised without a test
+changing.
 
 ## Stage 4b definition of done (pending)
 
@@ -342,10 +448,49 @@ nothing is asserted in prose alone.
   anywhere: its remainder is the Stieltjes bound and its rounding term is
   counted.
 
+## Stage 4 rev 7 Part A (make rev 6 reviewable)
+
+Rev 6 was never reviewable. origin/main was c243090 and stage4-rev6 existed
+only on the authoring host, so no rev 6 finding was ever reproduced by anyone.
+Every rev 6 disposition reverts to PROVISIONAL pending reproduction, and this
+section records only what Part A established.
+
+- A1 PUBLISHED. stage4-rev6 pushed to origin at be521639d8f0ad56ad20c4c1579e
+  3154b443aeda. main NOT fast-forwarded: origin/main remains c243090.
+  `git merge-base --is-ancestor c243090 stage4-rev6` exits 0.
+- A2 RESIDUE AUDIT, all 24 commits. Exactly one commit carries mutated source:
+  951bfd9 carries docs/gate/mutations/01-radius-sticky.patch, as the rev 6
+  incident record already admitted. The revert at 15bd11f is COMPLETE:
+  `git diff 59676c3 15bd11f -- core/include/zetaforge/radius.hpp` is empty, so
+  the file at the revert is byte-identical to the last clean commit before the
+  contamination. Note on method: a `git apply --check` probe in both directions
+  reports 951bfd9 CLEAN, because the u128 typedef landed later at 246bcb5 and
+  the context drift defeats the patch in BOTH directions. The audit of record
+  is therefore signature-based, comparing the patch's changed lines against the
+  tree, and it is validated against 951bfd9 as a known positive control before
+  any clean verdict from it is believed.
+- A3 CLEAN-CLONE REPRODUCTION. Release, Debug and Debug+UBSan built from
+  scratch in a fresh clone of origin; ctest 10/10 in all three;
+  DETERMINISM_HASH 2cd01e86b40de75d identical across all three. ASan is
+  unusable on this host (see Decisions) so the local sanitiser leg is UBSan
+  only.
+- A5/A6 BATTERY. Per-row evidence now distinguishes rows that differ only by
+  configure flags, and the footer separates detections from null rows.
+- A7 DOMAIN. MATHS.md D9 and the table above. DoD item 2 corrected.
+- A8 kEmTMax. Derivation recorded in DECISIONS.md; t > 400 assigned to stage 4b.
+- A9 PLAN/STATE disagreement on the stage 4 split closed in PLAN.md section 11.
+- A10 INVENTORY. Four translation units, four header-only components, one
+  gated environment read, above and in the gate report.
+
 ## Next action
 
-Rev 6 complete. Stage 4 (split row 4, EM path) is "awaiting review": all four
-definition-of-done items are backed by green tests in the default suite.
+Rev 7 Part A complete and pushed. Stage 4 (split row 4, EM path) is
+"awaiting review" with Part A's evidence now reproducible by anyone from
+origin, which it was not at rev 6.
+
+Part B (B1 Ffix error-path overflow, B2 the O1/A3 remainder bound, B3 the L-D
+non-tautology probe, B4 the mul_real derivation, B5 pre-registration repair,
+B6 tags) has NOT begun. No file may be touched for it before Part A is gated.
 
 Stage 4b has not begun and must not begin without the literal reply
 "approved, continue".

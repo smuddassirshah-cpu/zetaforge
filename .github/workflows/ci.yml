@@ -1,8 +1,13 @@
 name: ci
 
+# The push trigger covers the revision branches as well as main. Through rev 6
+# it named main alone, origin carried nothing but main, and so NO leg in this
+# file had ever executed: the sanitisers and gate-battery legs were recorded as
+# closed findings on the strength of YAML no runner had run. A CI leg that
+# cannot be triggered on the branch the work lives on is not evidence.
 on:
   push:
-    branches: [main]
+    branches: [main, 'stage4-rev*']
   pull_request:
 
 jobs:
