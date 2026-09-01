@@ -504,6 +504,27 @@ section records only what Part A established.
   and the CI that was supposed to be the independent check had never once been
   triggered. Fixed by adding the four includes; a static audit of the whole of
   core/ for facilities used but not reachable reports nothing further.
+- A4 CI, SECOND RUN, GREEN. Run 33531659601 on 129cf18, conclusion success,
+  all 12 jobs: cpp (Release), cpp (Debug), determinism-compare, sanitisers,
+  gate-battery, sabotage-battery, no-env-knobs, rust, python, gitleaks,
+  pip-audit, cargo-audit. The sanitisers leg is Debug plus
+  -fsanitize=address,undefined -fno-sanitize-recover=all with
+  ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 and reports
+  "100% tests passed, 0 tests failed out of 10". That is the first execution of
+  AddressSanitizer against this tree ever, and it cannot be run locally at all
+  (see the Decisions entry on the Darwin ASan hang), so the Linux leg is the
+  only place this coverage exists.
+  Cross-toolchain reproduction, also a first: the gate-battery leg on
+  Linux 6.17 x86_64 with GCC 13.3.0 and cmake 3.31.6 reports
+  rows=24 detect=22 null=2 fail=0, row for row identical to the Darwin arm64 /
+  Apple clang 17.0.0 / cmake 4.4.0 run in the scratch clone. DETERMINISM_HASH
+  on the Linux runner is 2cd01e86b40de75d, the same value as all three local
+  configurations; the determinism contract only requires bit-identity within a
+  configuration, so agreement across architecture and standard library is more
+  than it asks for and is recorded as an observation, not as a promise.
+  R6-3 and R6-6 have evidence for the first time. They are not closed here:
+  they were recorded FIXED at rev 6 on YAML that had never run, and what closes
+  them is the reviewer's judgement on this run, not this sentence.
 - A5/A6 BATTERY. Per-row evidence now distinguishes rows that differ only by
   configure flags, and the footer separates detections from null rows.
 - A7 DOMAIN. MATHS.md D9 and the table above. DoD item 2 corrected.
