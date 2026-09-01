@@ -336,6 +336,30 @@ int main() {
                 evaluated, equality_failures, saturating);
     mpz_clears(expect, cap, claimed, nullptr);
 
+    // B1 regression (rev 7). The concrete pair whose PRE-FIX composition
+    // wrapped signed __int128 to err = 1 raw unit while the exact policy
+    // composition is 2^213 + 2^127 + 2^126 + 1 (~5.3e64): on fca734c,
+    // inflate_err(2^126, 2^119) overflowed to a negative scaled value and
+    // fell back to its unscaled input, the two inflated errors summed to
+    // -2^127, and the cross terms wrapped the total to exactly 1. A bound of
+    // one raw unit standing in for ~2^213 is the wrap-understates-the-truth
+    // defect in one line. The fixed composition must SATURATE here: anything
+    // small is a wrap, and this assertion fails verbatim on the pre-fix code
+    // (demonstration and both printed values in DECISIONS.md and the rev 7
+    // report; MATHS.md D10 is the policy).
+    {
+      auto p2 = [](int b) { return static_cast<Ffix::raw_t>(1) << b; };
+      const Ffix prod =
+          Ffix::from_raw(p2(119), p2(126)).mul(Ffix::from_raw(p2(8), p2(126)));
+      const zetaforge::u128 cap_u = ((static_cast<zetaforge::u128>(1)) << 127) - 1;
+      ZF_CHECK(prod.err_saturated());
+      ZF_CHECK(static_cast<zetaforge::u128>(prod.err()) == cap_u);
+      std::printf("FFIX_B1_PAIR err_saturated=%d err_eq_kErrMax=%d\n",
+                  static_cast<int>(prod.err_saturated()),
+                  static_cast<int>(static_cast<zetaforge::u128>(prod.err()) ==
+                                   cap_u));
+    }
+
     // A negative error count is not a bound and is refused at the boundary.
     bool refused = false;
     try {

@@ -1,0 +1,13 @@
+diff --git a/core/include/zetaforge/ffix.hpp b/core/include/zetaforge/ffix.hpp
+index 3ca6a80..d01a38c 100644
+--- a/core/include/zetaforge/ffix.hpp
++++ b/core/include/zetaforge/ffix.hpp
+@@ -177,7 +177,7 @@ class Ffix {
+ 
+   // Largest error count representable in the signed raw word. Saturation
+   // ceiling for the whole error path; see err_saturated().
+-  static constexpr u128 kErrMax = (((u128)1) << 127) - 1;
++  static constexpr u128 kErrMax = (((u128)1) << 64) - 1;  /* clamp lowered: ATTACKS.md row 25 */
+ 
+   static u128 to_u(raw_t v) { return v < 0 ? 0 : (u128)v; }
+ 

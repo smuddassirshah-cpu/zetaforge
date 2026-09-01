@@ -133,6 +133,26 @@ interviewer's first follow-up is always "compared to what?".
 
 ### Stage 4 additions
 
+- 2026-09-01 (stage 4 rev 7, B1). The rev 6 Ffix error-composition overflow is
+  promoted from a deviation note to a finding with the R6-1 treatment. The
+  concrete pair: a = (raw 2^119, err 2^126) times b = (raw 2^8, err 2^126).
+  Pre-fix (commit fca734c, composition in signed __int128, observed wrap
+  reproduced under -fwrapv): composed err = 1 raw unit. Exact policy
+  composition: 2^213 + 2^127 + 2^126 + 1 = 52656145834278593348959014522399950
+  001324474627023770490691911681 raw units (~5.3e64). Post-fix policy:
+  min(exact, kErrMax) = 2^127 - 1 = 170141183460469231731687303715884105727,
+  saturated marker. The tracked bound therefore wrapped 149 binary orders of
+  magnitude BELOW the truth, on admissible inputs, in one multiplication.
+  Regression: test_ffix pins this exact pair (err_saturated AND err == kErrMax)
+  and fails verbatim on the pre-fix code; the equality `claimed == min(exact,
+  cap)` reads FAILS there. Mutation rows: 24 (wrap restored) and 25 (clamp
+  lowered to 2^64 - 1, pre-registered at rev 7 before this entry's code).
+  Policy of record: MATHS.md D10, which answers what a saturated bound
+  denotes, proves by exhibition that the clamp value is not an upper bound,
+  proves step-capping equals end-capping, and proves structurally that no
+  certified path reaches a saturated bound today, with the stage 5 escalation
+  rule recorded.
+
 - 2026-08-26 (stage 4 rev 6, RECORDED IN FULL at rev 7 A8). kEmTMax lowered
   from 20000 to 400. The 20000 was asserted in code with no derivation in any
   document, which is what review finding D6 charged; the number below is
