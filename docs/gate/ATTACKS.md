@@ -46,6 +46,24 @@ is the only ordering under which a mutation can be said to have been chosen
 blind to the implementation. Their Expected column was fixed in that same
 commit and may not be edited to match a measurement afterwards.
 
+Rows 25 and 26 were pre-registered at rev 7 Part B, in a commit that precedes
+the code they attack (gate instruction B5); their Expected column was fixed in
+that commit and may not be edited afterwards. Row 25 attacks the VALUE of the
+Ffix saturation ceiling, where row 24 attacks the wrap: an error clamp lowered
+to 2^64-1 is exactly the "small number standing in for a large one" the type's
+contract forbids, and the policy-equality layer transcribes the cap in GMP
+integers so a lowered production clamp must break equality on every saturating
+case. Row 26 is an instrument-health row for L-D in the row-10 sense: it
+perturbs the TEST-side transcription of Backlund's bound by one part in 10^4.
+As shipped at rev 6, L-D accepted any transcription drift inside a +/-1
+percent band while the measured production/transcription agreement was
+1.000000 to six printed decimals, so this row could not have failed and the
+layer was not a test of its own transcription. Its Expected column asserts
+exit 1: the claim, fixed before the implementing code, is that L-D is replaced
+by a band matched to its measured agreement, after which a 10^-4 perturbation
+must be detected. If the replaced layer still cannot fail this row, L-D is not
+a test and the row stays red until it is.
+
 Two of them are instrument-health rows rather than sabotage: row 19 measures
 whether anything except the L-C assertion covers the imaginary-cancellation
 invariant, and row 20 mutates the L-B bracket itself to prove that layer is not
@@ -154,6 +172,8 @@ first CI execution this repository has ever had. It is fixed at 129cf18.
 | 22 | Bernoulli recurrence index shifted by one | 22-bernoulli-index.patch | - | $B/core/test_theta | 1 | n/a (no recurrence) | n/a (no recurrence) | DETECTED (exit 1, L5) | DETECTED (exit 1), PASS, tree-clean=yes |
 | 23 | sub-t0 golden corpus, one digit flipped | 23-subt0-golden-digit.patch | - | $B/core/test_theta | 1 | n/a (no corpus) | n/a (no corpus) | DETECTED (exit 1, L2b) | DETECTED (exit 1), PASS, tree-clean=yes |
 | 24 | Ffix error composition wraps instead of saturating | 24-ffix-err-wrap.patch | - | $B/core/test_ffix | 1 | n/a (no such test) | n/a (no such test) | DETECTED (exit 1) | DETECTED (exit 1), PASS, tree-clean=yes |
+| 25 | Ffix saturation ceiling kErrMax lowered to 2^64-1 | 25-ffix-clamp-lowered.patch | - | $B/core/test_ffix | 1 | n/a (row added rev 7) | n/a (row added rev 7) | n/a (row added rev 7) | TO BE MEASURED |
+| 26 | L-D transcription of Backlund's bound perturbed x1.0001 in test_zeta | 26-ld-transcription-perturbed.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (row added rev 7) | n/a (row added rev 7) | n/a (row added rev 7) | TO BE MEASURED |
 
 ## Null rows and the invariants they leave unguarded
 
