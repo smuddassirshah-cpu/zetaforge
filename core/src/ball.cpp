@@ -1,5 +1,6 @@
 #include "zetaforge/ball.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <limits>

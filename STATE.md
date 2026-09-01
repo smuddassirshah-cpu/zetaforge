@@ -130,6 +130,13 @@ Running log. One line each: date, decision, reason, PLAN.md deviation? y/n.
   coverage therefore exists ONLY on the Linux CI leg, which raises rather than
   lowers what A4 has to prove, y
 
+- 2026-09-01 (rev 7, A4), Four missing standard-library includes repaired in
+  core/. They are not style: the tree could not be compiled by GCC at all, so
+  no CI leg in this repository had ever built it, and every measurement backing
+  the rev 6 gate came from a single host, compiler and standard library. Found
+  the moment CI was allowed to run. The permanent guard is the CI Linux leg
+  itself, now triggered on the revision branches, n
+
 
 ## Open questions
 Anything blocking or deferred, with the stage it affects.
@@ -474,6 +481,29 @@ section records only what Part A established.
   DETERMINISM_HASH 2cd01e86b40de75d identical across all three. ASan is
   unusable on this host (see Decisions) so the local sanitiser leg is UBSan
   only.
+- A4 CI, FIRST EXECUTION IN THE HISTORY OF THIS REPOSITORY, AND IT FAILED.
+  Run 33531268439 on 4bcb165. The C++ tree DOES NOT COMPILE ON LINUX. GCC's
+  libstdc++ does not transitively include what Apple's libc++ does, and four
+  translation units relied on exactly that:
+    core/tests/test_zeta.cpp        uses std::invalid_argument and
+                                    std::domain_error, includes <exception>
+                                    but never <stdexcept>
+    core/tests/test_theta.cpp       uses std::exception, never included it
+    core/src/ball.cpp               uses std::max, never included <algorithm>
+    core/tests/test_ball_oracle.cpp uses std::max, never included <algorithm>
+  Consequences measured, not inferred: cpp (Debug) failed at the build step,
+  cpp (Release) was cancelled with it, sanitisers failed at the build step so
+  ASan has STILL never run on this tree, sabotage-battery failed at its first
+  build, and the gate-battery leg reported rows=24 detect=1 null=0 fail=23 -
+  every row that needs a binary died at the build and only row 15, which
+  inspects sources, ran. The A5 format is what makes that legible: each of the
+  23 lines reads "measured exit 91 (did not reach the run: build failed)",
+  where the rev 6 format would have printed a bare exit=91 against expected=1.
+  This is the single most important thing Part A found. Every green figure
+  rev 6 reported came from one machine, one compiler and one standard library,
+  and the CI that was supposed to be the independent check had never once been
+  triggered. Fixed by adding the four includes; a static audit of the whole of
+  core/ for facilities used but not reachable reports nothing further.
 - A5/A6 BATTERY. Per-row evidence now distinguishes rows that differ only by
   configure flags, and the footer separates detections from null rows.
 - A7 DOMAIN. MATHS.md D9 and the table above. DoD item 2 corrected.

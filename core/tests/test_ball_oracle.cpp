@@ -21,6 +21,7 @@
 #include <flint/arb.h>
 #include <flint/arf.h>
 
+#include <algorithm>
 #include <cfloat>
 #include <cmath>
 #include <cstdint>
