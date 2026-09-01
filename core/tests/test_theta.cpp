@@ -44,6 +44,7 @@
 //   ZF_GOLDEN_SUBT0_PATH  points at corrupted sub-t0 corpus -> breaks L2b
 
 #include <cmath>
+#include <exception>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>

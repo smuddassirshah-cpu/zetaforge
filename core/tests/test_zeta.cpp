@@ -41,6 +41,7 @@
 #include <cstdio>
 #include <cmath>
 #include <exception>
+#include <stdexcept>
 #include <limits>
 
 #include "check.hpp"
