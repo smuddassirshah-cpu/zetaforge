@@ -1,5 +1,5 @@
 diff --git a/core/src/theta.cpp b/core/src/theta.cpp
-index 839323a..7631c1d 100644
+index 0afe2cd..6bc19f8 100644
 --- a/core/src/theta.cpp
 +++ b/core/src/theta.cpp
 @@ -5,6 +5,7 @@
@@ -7,10 +7,10 @@ index 839323a..7631c1d 100644
  #include <algorithm>
  #include <cmath>
 +#include <cstdlib>
+ #include <limits>
  #include <stdexcept>
  
- namespace zetaforge {
-@@ -257,6 +258,8 @@ Ball theta_certified(double t, mpfr_prec_t prec) {
+@@ -273,6 +274,8 @@ Ball theta_certified(double t, mpfr_prec_t prec) {
      return theta_subt0(t, prec);
    }
  

@@ -334,15 +334,46 @@ Ball theta_certified(double t, mpfr_prec_t prec) {
   const double eterm =
       e4 >= 1074.0 ? std::numeric_limits<double>::denorm_min()
                    : std::ldexp(1.0, -static_cast<int>(e4));
-  const double rem_proven =
-      (kC7 / p13 + kThetaTailB16 / (p13 * t2) + eterm) * kThetaEvalGuard;
+  // Range guard (rev 7 adversarial verification; MATHS.md D1b.8). pow(t, 13)
+  // overflows to +inf at t ~ 5.1511e23, 282 decades below the domain
+  // boundary, after which kC7/p13 evaluates to ZERO and the naive sum
+  // silently drops the whole truncation bound (a hole inherited from the
+  // factor-4 code, which divided by the same overflowed power). Above the
+  // overflow the sum is enclosed through exponent arithmetic: the numerator
+  // factors total below 2^-8 and t^13 >= 2^(13 ilogb t), so
+  // 2^(-8 - 13 ilogb t) dominates, clamped to the smallest subnormal, which
+  // is itself an enclosure there because c7/t^13 falls below denorm_min
+  // before the clamp can engage (D1b.8). The tail term's own earlier
+  // overflow (p13 * t2 = inf above t ~ 3.55e20) only DROPS a term whose
+  // relative weight is 147.6/t^2 < 1.2e-39 there, absorbed by the guard.
+  double rem_proven;
+  if (p13 < std::numeric_limits<double>::infinity()) {
+    rem_proven =
+        (kC7 / p13 + kThetaTailB16 / (p13 * t2) + eterm) * kThetaEvalGuard;
+  } else {
+    const long e13 = -8 - 13L * std::ilogb(t);
+    rem_proven = e13 < -1074 ? std::numeric_limits<double>::denorm_min()
+                             : std::ldexp(1.0, static_cast<int>(e13));
+  }
   const double mag_d = std::fabs(mpfr_get_d(acc.v, MPFR_RNDN));
-  const double mpfr_slack = (mag_d > 0.0 ? mag_d : 1.0)
-                            * std::ldexp(1.0, static_cast<int>(-(prec - 2)));
+  // Slack terms scale the magnitude DIRECTLY with ldexp (D1b.8): the
+  // previous ldexp(1.0, -(prec-2)) factor underflowed to exactly zero for
+  // prec >= 1077 and took the whole slack with it, leaving centre rounding
+  // uncovered at extreme precisions. Exponents are capped at 2100; beyond
+  // that the true bound sits below the smallest subnormal for every finite
+  // double magnitude (mag <= 2^1024), and inflate()'s zero-to-denorm_min
+  // floor is itself an enclosure. inflate() also covers the one subnormal
+  // rounding ldexp can commit.
+  const long pe = static_cast<long>(prec) - 2;
+  const int se = pe > 2100 ? 2100 : static_cast<int>(pe);
+  const double mpfr_slack =
+      inflate(std::ldexp(mag_d > 0.0 ? mag_d : 1.0, -se));
   // (iii) coefficient representation error: each rational parsed at p
   // carries <= c_k * 2^(1-p); dominant term is c_1/t.
-  const double coeff_slack = std::ldexp(1.0, static_cast<int>(1 - prec))
-                             * ((1.0 / 48.0) / t) * (1.0 + 1e-3);
+  const long ce = static_cast<long>(prec) - 1;
+  const int sc = ce > 2100 ? 2100 : static_cast<int>(ce);
+  const double coeff_slack =
+      inflate(std::ldexp(((1.0 / 48.0) / t) * (1.0 + 1e-3), -sc));
   double radius = rem_proven + mpfr_slack + coeff_slack;
   // Compile-time gated falsifiability hook; an inline 1.0 in production
   // builds (zetaforge/sabotage.hpp). Never reads the environment here.

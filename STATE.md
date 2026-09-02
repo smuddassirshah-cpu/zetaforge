@@ -171,6 +171,25 @@ Running log. One line each: date, decision, reason, PLAN.md deviation? y/n.
   1-ulp-libm platform; L12 now asserts the exact mpfr margin stays above
   1e-13 every run, y
 
+- 2026-09-02 (rev 7 B, verification), Adversarial verification pass run over
+  the whole Part B diff before the gate battery: five independent verifiers
+  (derivation, code soundness, Ffix policy, battery/tests, records
+  coherence). Every load-bearing D1b claim survived independent recomputation
+  at 420 digits. What did not survive: (1) theta.cpp's radius evaluation
+  carried two silent range failures, pow(t,13) overflow at t ~ 5.15e23 and
+  ldexp slack underflow at prec >= 1077, jointly a FALSE CERTIFICATE at
+  (6e23, 1100), violation ~2.5e11, inside the accepted domain; the overflow
+  half was inherited from the factor-4 code and predates rev 7. Repaired with
+  an exponent-arithmetic branch and direct-scaling slacks (MATHS.md D1b.8),
+  pinned by an extended L3 sweep to t = 1e300 and prec = 2048. (2) Patches 15
+  and 19 were invalidated by B2/B3 context drift and are regenerated with
+  patch 02. (3) The B1 exhibition's power expression was wrong (the decimal
+  was right): the exact composition is 2^215 + 2^129 + 1, corrected in
+  DECISIONS.md and D10. (4) The residue auditor's pure-deletion rule produced
+  a false positive on four stage 3 commits and a false negative on applied
+  deletions; repaired with context-anchored verdicts. Remaining record-level
+  corrections are itemised in the fix commits, y
+
 
 ## Open questions
 Anything blocking or deferred, with the stage it affects.

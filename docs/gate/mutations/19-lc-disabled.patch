@@ -1,8 +1,8 @@
 diff --git a/core/tests/test_zeta.cpp b/core/tests/test_zeta.cpp
-index 075c1b1..0be11d5 100644
+index 79d242e..4be0815 100644
 --- a/core/tests/test_zeta.cpp
 +++ b/core/tests/test_zeta.cpp
-@@ -202,7 +202,7 @@ static int run_suite() {
+@@ -203,7 +203,7 @@ static int run_suite() {
                        h, static_cast<int>(precs[pi]),
                        mpfr_get_d(r.im.centre(), MPFR_RNDN), r.im.radius());
          }
@@ -10,4 +10,4 @@ index 075c1b1..0be11d5 100644
 +        // L-C removed: ATTACKS.md row 19
  
          // L-D: the EM tail bound must be Backlund's, at the pinned (N, M).
-         const double expect = backlund_transcribed(h, r.em_n, r.em_m);
+         //

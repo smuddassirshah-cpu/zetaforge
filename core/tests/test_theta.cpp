@@ -102,7 +102,9 @@ double g_scale() {
 
 double bound_base(double t) {
   // The PROVEN D1b bound, transcribed: c7/t^13 + (|B16|/15)/t^15 + e-term,
-  // times the 1 + 2^-40 evaluation guard of D1b.7.
+  // times the 1 + 2^-40 evaluation guard of D1b.7, with the D1b.8 overflow
+  // branch above t ~ 5.15e23. Term association matches production exactly:
+  // tail over (p13 * (t * t)), so the overflow onsets coincide.
   const double c7 = 8191.0 / 2555904.0;
   const double tail_b16 = 0.4728105;   // > 3617/7650, as in production
   const double p13 = std::pow(t, 13.0);
@@ -110,19 +112,36 @@ double bound_base(double t) {
   const double eterm =
       e4 >= 1074.0 ? std::numeric_limits<double>::denorm_min()
                    : std::ldexp(1.0, -static_cast<int>(e4));
-  return (c7 / p13 + tail_b16 / (p13 * t * t) + eterm) * (1.0 + 0x1p-40);
+  if (p13 < std::numeric_limits<double>::infinity()) {
+    return (c7 / p13 + tail_b16 / (p13 * (t * t)) + eterm) * (1.0 + 0x1p-40);
+  }
+  const long e13 = -8 - 13L * std::ilogb(t);
+  return e13 < -1074 ? std::numeric_limits<double>::denorm_min()
+                     : std::ldexp(1.0, static_cast<int>(e13));
 }
 
 // Independent transcription of ALL radius components for L3 policy
 // equality. Deliberate duplication of theta.cpp's derivation constants:
 // a mismatch means production changed without the suite agreeing.
 double radius_transcribed(double t, int prec) {
+  // Mirrors production's D1b.8 slack evaluation: direct ldexp scaling with
+  // the exponent capped at 2100 and an independent one-ulp outward bump
+  // (nextafter here, inflate() there) so extreme precisions cannot underflow
+  // the slack to zero on either side.
+  auto up1 = [](double x) {
+    return x <= 0.0 ? std::numeric_limits<double>::denorm_min()
+                    : std::nextafter(x, std::numeric_limits<double>::infinity());
+  };
   const double rem = bound_base(t);
   const double centre_scale =
       std::fabs((t / 2) * std::log(t / (2 * M_PI)) - t / 2 - M_PI / 8);
-  const double mpfr_slack = centre_scale * std::ldexp(1.0, -(prec - 2));
-  const double coeff_slack = std::ldexp(1.0, 1 - prec)
-                             * ((1.0 / 48.0) / t) * (1.0 + 1e-3);
+  const long pe = static_cast<long>(prec) - 2;
+  const int se = pe > 2100 ? 2100 : static_cast<int>(pe);
+  const double mpfr_slack = up1(std::ldexp(centre_scale, -se));
+  const long ce = static_cast<long>(prec) - 1;
+  const int sc = ce > 2100 ? 2100 : static_cast<int>(ce);
+  const double coeff_slack =
+      up1(std::ldexp(((1.0 / 48.0) / t) * (1.0 + 1e-3), -sc));
   return g_scale() * rem + mpfr_slack + coeff_slack;
 }
 
@@ -200,8 +219,9 @@ static int run_suite() {
         mpfr_sub(d, th.centre(), g, MPFR_RNDN);
         mpfr_abs(d, d, MPFR_RNDN);
         // Tolerance = the certified radius alone (zero additive slack).
-        // The corpus carries 45 significant digits per value, so its own
-        // rounding contribution sits far below any certified radius here.
+        // The corpus carries ~170 significant digits per value (the header
+        // of the CSV says so and the values do), so its own rounding
+        // contribution sits far below any certified radius here.
         mpfr_set_d(tol, th.radius(), MPFR_RNDN);
         if (mpfr_cmp(d, tol) > 0) {
           std::printf("L2MISS pr=%d t=%g d=%.6g tol=%.6g ratio=%.3g\n",
@@ -409,10 +429,21 @@ static int run_suite() {
   }
 
   // ---- L3: policy equality ---------------------------------------------
-  for (double h : {200.0, 1000.0, 3.0e12}) {
-    const Ball th = theta_certified(h, kPrec);
-    const double expect = radius_transcribed(h, kPrec);
-    ZF_CHECK(std::fabs(th.radius() - expect) <= 1e-3 * expect);
+  // The height sweep reaches into the D1b.8 overflow branch (1e30, 1e300)
+  // and the precision sweep into the capped-exponent slack regime (2048),
+  // so the range guards added at rev 7 are pinned by equality, not only by
+  // the derivation: production cannot drop them without this failing.
+  for (int pr : {static_cast<int>(kPrec), 2048}) {
+    for (double h : {200.0, 1000.0, 3.0e12, 1.0e30, 1.0e300}) {
+      const Ball th = theta_certified(h, pr);
+      const double expect = radius_transcribed(h, pr);
+      // The band carries an absolute floor of a few subnormal ulps: in the
+      // capped-exponent regime the radius is a handful of denorm_min quanta
+      // and production's final inflate() adds one more, which no relative
+      // band can absorb at that granularity.
+      ZF_CHECK(std::fabs(th.radius() - expect) <=
+               1e-3 * expect + 8 * std::numeric_limits<double>::denorm_min());
+    }
   }
 
   std::fprintf(stdout, "THETA_SUITE failures %d\n", ::zftest::failure_count());

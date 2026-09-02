@@ -282,6 +282,58 @@ inflate() adds one outward ulp on top. The bound as computed therefore
 exceeds the bound as proven, which exceeds the remainder, at EVERY corpus
 height and every t the series path serves.
 
+### D1b.8 Range behaviour of the double evaluation
+
+Found by the rev 7 adversarial verification pass, after D1b.7 was written and
+before it shipped: two silent floating-point range failures falsified the
+certificate in a far but documented-as-certified regime, one of them inherited
+unnoticed from the factor-4 code.
+
+(1) pow(t, 13) overflows to +inf at t = DBL_MAX^(1/13) ~ 5.1511e23, which is
+282 decades BELOW the domain boundary of D9.1. Past that point kC7/p13 and
+the tail term both evaluate to zero and the truncation component of the
+radius collapsed to denorm_min while the proven bound c7/t^13 is as large as
+1.78e-311. The factor-4 code divided by the same overflowed power and had the
+same hole; nothing could see it because the corpus stops at t = 1e13 and the
+mpfr slack term covered the gap up to prec = 1076.
+
+(2) ldexp(1.0, -(prec-2)) underflows to exactly zero for prec >= 1077, taking
+the whole mpfr slack term with it (and the coefficient term at prec >= 1076),
+so at extreme precisions nothing covered the centre rounding. Combined with
+(1), theta_certified(6e23, 1100) returned radius ~9.9e-324 against a true
+error ~2.45e-312: a false certificate, violation factor ~2.5e11, at inputs
+inside the D9 accepted domain.
+
+The repair, and why it is sound at every height and precision:
+
+- Above the pow overflow the truncation bound is computed by exponent
+  arithmetic: c7 (1 + 147.6/t^2) plus the e-term contributions total below
+  2^-8, and t^13 >= 2^(13 ilogb t), so 2^(-8 - 13 ilogb t) encloses the whole
+  sum. The expression is clamped to denorm_min only when
+  -8 - 13 ilogb(t) < -1074, which first happens at t >= 2^83 ~ 9.7e24, and
+  c7/t^13 falls below denorm_min already at t ~ 4.76e24, so the clamp is
+  itself an enclosure wherever it engages. (The tail term's own earlier
+  overflow, p13 * t^2 = inf above t ~ 3.55e20, merely DROPS a term whose
+  relative weight is below 1.2e-39 there; the 2^-40 guard absorbs it.)
+- The slack terms now scale the magnitude directly, ldexp(mag, -e) instead of
+  mag * ldexp(1, -e), so nothing underflows before the magnitude enters; the
+  exponent is capped at 2100, beyond which the true bound sits below
+  denorm_min for every finite double magnitude (mag <= 2^1024 and
+  2^(1024-2100) < 2^-1074); and each slack passes through inflate(), whose
+  zero-to-denorm_min floor and one-ulp bump cover both the cap and the single
+  subnormal rounding ldexp can commit.
+- test_theta transcribes all of it independently (nextafter in place of
+  inflate) and the L3 sweep now reaches t in {1e30, 1e300} and prec = 2048,
+  so both range guards are pinned by policy equality: production cannot drop
+  either branch without the suite failing. The L3 band carries an absolute
+  floor of eight subnormal ulps, because in the capped regime the radius is a
+  handful of denorm_min quanta and no relative band can absorb a one-quantum
+  difference.
+
+Measured after the repair: radius(6e23, 1100) = 4.61e-306 against the proven
+bound 2.45e-312; radius(4e24, 2048) = 4.05e-320 against 4.78e-323; enclosure
+holds at every probed (t, prec) with two or more decades of headroom.
+
 ## D7b derivation: complex ball operation bounds
 
 Notation. A complex ball is a centre pair (ar, ai) with componentwise radii
