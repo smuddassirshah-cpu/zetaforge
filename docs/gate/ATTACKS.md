@@ -118,12 +118,18 @@ Darwin 25.6.0 arm64, Apple clang 17.0.0, cmake 4.4.0. Reported at the time as
 "24 rows, 24 PASS". Under the rev 7 counting that reads rows=24 detect=22
 null=2 fail=0: two of those 24 passes were null rows asserting that nothing
 happens, and calling them detections overstated the suite by two.
-Rev 7 column: measured by tools/gate_battery.sh at commit 129cf18, in a FRESH
-CLONE OF ORIGIN in a scratch directory, on Darwin 25.6.0 arm64, Apple clang
-17.0.0, cmake 4.4.0. rows=24 detect=22 null=2 fail=0, tree diff-clean after
-every row. No figure in this column comes from a pre-existing build tree; the
-clone was made from origin at the pushed sha and every row rebuilds from
-scratch inside it.
+Rev 7 column: the battery of record for Part B, measured by
+tools/gate_battery.sh at commit c1d2c5f, in a FRESH CLONE in a scratch
+directory, on Darwin 25.6.0 arm64, Apple clang 17.0.0, cmake 4.4.0.
+rows=26 detect=24 null=2 fail=0, tree diff-clean after every row. No figure
+comes from a pre-existing build tree; every row rebuilds from scratch inside
+the clone. A12 compliance: the commit recording this column is the only one
+after c1d2c5f and touches records alone (this file and STATE.md); the CI
+gate-battery leg re-runs all 26 rows at that tip on Linux.
+Part A's run of this column (rows 1-24 at 129cf18, before the Part B code
+existed: rows=24 detect=22 null=2 fail=0) is superseded by this measurement
+under rule A12, because Part B changed source, tests and patches; it remains
+in the git history at 956bb12.
 
 A12 compliance for the Part A record: the battery commit is 129cf18 and the
 branch tip at the time of recording was 956bb12. The intervening commit is
@@ -172,8 +178,8 @@ first CI execution this repository has ever had. It is fixed at 129cf18.
 | 22 | Bernoulli recurrence index shifted by one | 22-bernoulli-index.patch | - | $B/core/test_theta | 1 | n/a (no recurrence) | n/a (no recurrence) | DETECTED (exit 1, L5) | DETECTED (exit 1), PASS, tree-clean=yes |
 | 23 | sub-t0 golden corpus, one digit flipped | 23-subt0-golden-digit.patch | - | $B/core/test_theta | 1 | n/a (no corpus) | n/a (no corpus) | DETECTED (exit 1, L2b) | DETECTED (exit 1), PASS, tree-clean=yes |
 | 24 | Ffix error composition wraps instead of saturating | 24-ffix-err-wrap.patch | - | $B/core/test_ffix | 1 | n/a (no such test) | n/a (no such test) | DETECTED (exit 1) | DETECTED (exit 1), PASS, tree-clean=yes |
-| 25 | Ffix saturation ceiling kErrMax lowered to 2^64-1 | 25-ffix-clamp-lowered.patch | - | $B/core/test_ffix | 1 | n/a (row added rev 7) | n/a (row added rev 7) | n/a (row added rev 7) | TO BE MEASURED |
-| 26 | L-D transcription of Backlund's bound perturbed x1.0001 in test_zeta | 26-ld-transcription-perturbed.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (row added rev 7) | n/a (row added rev 7) | n/a (row added rev 7) | TO BE MEASURED |
+| 25 | Ffix saturation ceiling kErrMax lowered to 2^64-1 | 25-ffix-clamp-lowered.patch | - | $B/core/test_ffix | 1 | n/a (row added rev 7) | n/a (row added rev 7) | n/a (row added rev 7) | DETECTED (exit 1), PASS, tree-clean=yes |
+| 26 | L-D transcription of Backlund's bound perturbed x1.0001 in test_zeta | 26-ld-transcription-perturbed.patch | -DZF_ARM_STAGE4=ON | $B/core/test_zeta | 1 | n/a (row added rev 7) | n/a (row added rev 7) | n/a (row added rev 7) | DETECTED (exit 1), PASS, tree-clean=yes |
 
 ## Null rows and the invariants they leave unguarded
 
