@@ -1,7 +1,7 @@
 # Build state
 
 Current stage: 4
-Last updated: 2026-08-26
+Last updated: 2026-09-02
 
 ## Stages
 | # | Stage | Status | Gate |
@@ -404,6 +404,8 @@ Known gaps NOT closed this revision (carried forward):
   tree prints one, so the stage 2 inherited obligation is met in full.
 - MATHS.md O1 (Gabcke per-term constants) remains open and now has an explicit
   consequence recorded: the theta safety factor is load-bearing, not headroom.
+  CLOSED at rev 7 (B2), by D1b's proven bound rather than by transcribing
+  Gabcke; the safety factor no longer exists.
 
 ## Stage 4 definition of done (split row 4, EM path)
 
@@ -588,13 +590,11 @@ section records only what Part A established.
 
 ## Next action
 
-Rev 7 Part A complete and pushed. Stage 4 (split row 4, EM path) is
-"awaiting review" with Part A's evidence now reproducible by anyone from
-origin, which it was not at rev 6.
-
-Part B (B1 Ffix error-path overflow, B2 the O1/A3 remainder bound, B3 the L-D
-non-tautology probe, B4 the mul_real derivation, B5 pre-registration repair,
-B6 tags) has NOT begun. No file may be touched for it before Part A is gated.
+Rev 7 Part A was gated ("approved, gated at 956bb12"). Part B is in progress
+on this branch: A11, A12, the row 25/26 pre-registration, B1, B2, B3, B4 and
+the adversarial verification repairs are committed; the battery of record at
+the Part B tip, the B6 tags, and the final record commit remain, after which
+this section carries the gate stop.
 
 Stage 4b has not begun and must not begin without the literal reply
 "approved, continue".

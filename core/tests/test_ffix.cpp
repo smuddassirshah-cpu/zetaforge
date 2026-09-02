@@ -338,11 +338,11 @@ int main() {
 
     // B1 regression (rev 7). The concrete pair whose PRE-FIX composition
     // wrapped signed __int128 to err = 1 raw unit while the exact policy
-    // composition is 2^213 + 2^127 + 2^126 + 1 (~5.3e64): on fca734c,
+    // composition is 2^215 + 2^129 + 1 (~5.3e64): on fca734c,
     // inflate_err(2^126, 2^119) overflowed to a negative scaled value and
     // fell back to its unscaled input, the two inflated errors summed to
     // -2^127, and the cross terms wrapped the total to exactly 1. A bound of
-    // one raw unit standing in for ~2^213 is the wrap-understates-the-truth
+    // one raw unit standing in for ~2^215 is the wrap-understates-the-truth
     // defect in one line. The fixed composition must SATURATE here: anything
     // small is a wrap, and this assertion fails verbatim on the pre-fix code
     // (demonstration and both printed values in DECISIONS.md and the rev 7

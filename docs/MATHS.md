@@ -41,8 +41,11 @@ values:
     c_5 = 511/1216512             c_6 = 1414477/1476034560
     c_7 = 8191/2555904            c_8 = 118518239/8021606400
 
-c_1 to c_6 are exactly core/src/theta.cpp's kCRat, c_7 is exactly kC7, and
-c_8's double is exactly kC8 = 0.014774875890195759. The numerator pattern
+c_1 to c_6 are exactly core/src/theta.cpp's kCRat and c_7 is exactly kC7.
+(Through rev 6 the table's c_8 double was also shipped, as kC8, serving the
+factor-4 remainder policy; both retired at rev 7 when D1b's proven bound
+replaced that policy, and the shipped tail constant is now kThetaTailB16, an
+upper bound on |B_16|/15, checked in exact arithmetic by the same tool.) The numerator pattern
 2^(2k-1) - 1 that the earlier record claimed is visible in c_1..c_5 and c_7 and
 is broken by c_6 and c_8, because it is an artefact of |B_2k| having numerator
 1 for small k, not a property of the coefficients.
@@ -70,8 +73,11 @@ A by-product worth recording: the confirmer measures the true series residual
 against the first omitted term at five heights, and the ratio is 1.000115 at
 t = 200, falling to 1.000000 by t = 1e5. It is strictly ABOVE 1 everywhere,
 which is review finding A3 reproduced independently: the D1 remainder bound
-without its factor 4 is not a bound, so that factor is load-bearing and O1 is
-not cosmetic.
+without its factor 4 is not a bound. (Historical: that observation is what
+made O1 load-bearing through rev 6. At rev 7 B2 the factor and O1 are both
+retired: D1b derives the same 1.000115 as 1 + c_8/(c_7 t^2) + O(t^-4) and
+replaces the policy with a proven bound; this paragraph is kept as the record
+of why the confirmation mattered.)
 
 
 ## D1b derivation: the proven remainder of the theta series (closes O1)
@@ -174,10 +180,11 @@ line explains every empirical figure the project ever recorded about it
 
 Nemes (2013b), Theorem 4, verbatim: "Let a be an arbitrary number in [0,1].
 We have |R^{(a)}_{2n+1}(z)| <= |B_{2n+2}/(2n+1)| { 2/|z|^{2n+1} if
-Re(z) >= 0; 4/|Im(z)|^{2n+1} if Re(z) < 0, Im(z) != 0 }". The proof
-(section 3.3 of the paper) runs through the integral representation (31) and
-Spira's integral inequality, both stated for Re(z) >= 0, so the bound holds
-ON the imaginary axis, which is where (D1b-4) needs it. Instantiated at
+Re(z) >= 0; 4/|Im(z)|^{2n+1} if Re(z) < 0, Im(z) != 0 }". The theorem's own
+hypothesis is Re(z) >= 0, so the bound holds ON the imaginary axis, which is
+where (D1b-4) needs it; in the proof (section 3.3) the representations (29)
+and (31) hold off the cut and it is Spira's integral inequality that carries
+the Re(z) >= 0 hypothesis. Instantiated at
 (a, z, 2n+1) = (1/2, it, 15):
 
     |R_15^{(1/2)}(it)| <= 2 |B_16| / (15 t^15).
@@ -202,15 +209,15 @@ The classical first-omitted-term multipliers for Stirling-type series blow up
 at the axis. DLMF 5.11(ii), verbatim: "If z is complex, then the remainder
 terms are bounded in magnitude by sec^{2n}((1/2) ph z) for (5.11.1) ... times
 the first neglected terms" - at ph z = pi/2 and n = 7 that is
-sec^14(pi/4) = 128. Nemes (2013b) eq. (3) and (18): the Lindelof constant
+sec^14(pi/4) = 128. Nemes (2013b) eq. (3) and (17): the Lindelof constant
 ell(theta) = csc(2 theta) on pi/4 <= |theta| < pi/2 diverges as
-theta -> pi/2, and the paper notes (p. 165) it is "the best of n independent
-bounds" of that shape. So no n-independent multiplier of the first omitted
+theta -> pi/2, and the paper notes (p. 165) that csc(2 theta) is "the best of
+n independent bounds for which (17) holds". So no n-independent multiplier of the first omitted
 term exists at the axis in that family: 4 was not going to be proven, not
 because it was too small, but because the FORM was wrong. Theorem 4 escapes
 by keeping the shifted index: normalised against c_7, its one-term use reads
-|E| <= 28.004 c_7/t^13; the split (D1b-4/5) brings it to
-1 + 32.004 (c_8 (1+o(1)))/(c_7 t^2), i.e. 1.0037 at t = 200, decreasing to 1.
+|E| <= 28.003 c_7/t^13; the split (D1b-4/5) brings it to
+1 + 32.001 (c_8 (1+o(1)))/(c_7 t^2), i.e. 1.0037 at t = 200, decreasing to 1.
 
 Every recorded empirical figure now falls out of (D1b-4):
 
@@ -229,8 +236,8 @@ At t = 200 (the worst height the series path serves):
 | bound | value / (c_7/t^13) | provenance |
 |---|---|---|
 | DLMF 5.11(ii) sec^14(pi/4), via R^{(1/2)}_n(z) = R_n(2z) - R_n(z) | 128.03 | proven, corroboration |
-| Nemes Thm 3 at n = 13, sec^14(pi/4) M_13(1/2) | 512.06 | proven, corroboration |
-| Nemes Thm 4 one-term at 2n+1 = 13 | 28.004 | proven |
+| Nemes Thm 3 at n = 13, with M_13(1/2) <= 2 max_u |B_14(u)| = 2|B_14| | 256.03 | proven, corroboration |
+| Nemes Thm 4 one-term at 2n+1 = 13 | 28.003 | proven |
 | Nemes Thm 4 split (D1b-5), the SHIPPED bound | 1.00369 | proven |
 | retired kThetaSafety policy | 4.0005 | empirical, retired |
 | true remainder (mpmath, 260 digits) | 1.000115 | measured |
@@ -240,7 +247,7 @@ identity (D1b-4) and the duplication corroboration
 R_n^{(1/2)}(z) = R_n(2z) - R_n(z) both verified to residuals below 1e-258
 across t in {5, 20, 50, 199.999, 200, 400, 1000, 10000}; measured E/bound on
 the grid t in {200 ... 3e12}: 0.99644 at t = 200, increasing towards 1 from
-BELOW everywhere (the bound's tail term is 32.004 c_8-equivalents against a
+BELOW everywhere (the bound's tail term is 32.001 c_8-equivalents against a
 true tail of c_8, so the margin is structural, not numerical luck).
 
 ### D1b.7 Evaluation of (D1b-5) in double arithmetic
@@ -631,8 +638,10 @@ Every term is outward-rounded with the primitives of D7.
   (iii) Representation: none. t is a double and 1/4 and m are exact, so every
        input is binary-exact at P.
 
-There is no safety factor anywhere in this derivation. Compare D1, where the
-factor 4 is load-bearing and open as O1.
+There is no safety factor anywhere in this derivation. (Through rev 6 this
+line continued "compare D1, where the factor 4 is load-bearing and open as
+O1"; since rev 7 B2 there is no safety factor anywhere in D1 either, see
+D1b, and the comparison is retired.)
 
 ### D8.8 Euler-Maclaurin for zeta on the critical line, with Backlund
 
@@ -816,10 +825,12 @@ b = (raw 2^8, err 2^126), both admissible under the range contract, the exact
 policy composition of mul's error is
 
     e_exact = ea + eb + ea (bm>>32 + 1) + eb (am>>32 + 1) + 1
-            = 2^213 + 2^127 + 2^126 + 1  ~  5.27 x 10^64,
+            = 2^215 + 2^129 + 1  ~  5.27 x 10^64,
 
-with ea = 2^126 (2^87 + 2) and eb = 2^127. That exceeds kErrMax ~ 1.70 x 10^38
-by a factor of about 2^86. A clamp read as a bound would understate the
+with ea = 2^126 (2^87 + 2) and eb = 2^127 (corrected at rev 7: the first
+writing of this line dropped the cross terms from the power expression while
+carrying the correct decimal). That exceeds kErrMax ~ 1.70 x 10^38
+by a factor of about 2^88. A clamp read as a bound would understate the
 composed bound by that factor; read as a poison marker it asserts nothing
 numeric and is sound vacuously. This is why the type's contract sentence says
 a saturated error "is never a small number standing in for a large one":
@@ -827,7 +838,7 @@ the number kErrMax itself must not be read at all.
 
 The same pair is the B1 regression: on the pre-fix composition (signed
 __int128, commit fca734c) the wrap chain lands on err = 1 raw unit, i.e. the
-tracked bound claimed 2^-64 where the policy owes ~2^213 units. The
+tracked bound claimed 2^-64 where the policy owes ~2^215 units. The
 demonstration harness, both printed values, and the fca734c provenance are in
 the rev 7 gate report and DECISIONS.md; test_ffix asserts the fixed
 composition saturates on this exact pair.
@@ -937,7 +948,7 @@ saturate, which today is never, structurally.
   after the exact reduction of the series remainder to Hermite's expansion at
   arg z = pi/2. Gabcke's per-term constants were never transcribed and are no
   longer needed for theta; the entry is kept, marked rather than deleted,
-  because STATE.md and two release notes cite it by name.
+  because STATE.md and the v0.3-theta release note cite it by name.
 - O2 (RETRACTED as library defect; REINSTATED as harness-bug record): the
   reported acb_lgamma-vs-mpmath divergence was a double-conversion artefact of
   the measurement harness - FLINT interval midpoints were printed through
