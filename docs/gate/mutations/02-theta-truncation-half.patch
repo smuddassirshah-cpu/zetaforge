@@ -1,11 +1,11 @@
 diff --git a/core/src/theta.cpp b/core/src/theta.cpp
-index 4b24b23..a7801c7 100644
+index 0afe2cd..7f6a03f 100644
 --- a/core/src/theta.cpp
 +++ b/core/src/theta.cpp
-@@ -331,7 +331,7 @@ Ball theta_certified(double t, mpfr_prec_t prec) {
-   // carries <= c_k * 2^(1-p); dominant term is c_1/t.
-   const double coeff_slack = std::ldexp(1.0, static_cast<int>(1 - prec))
-                              * ((1.0 / 48.0) / t) * (1.0 + 1e-3);
+@@ -374,7 +374,7 @@ Ball theta_certified(double t, mpfr_prec_t prec) {
+   const int sc = ce > 2100 ? 2100 : static_cast<int>(ce);
+   const double coeff_slack =
+       inflate(std::ldexp(((1.0 / 48.0) / t) * (1.0 + 1e-3), -sc));
 -  double radius = rem_proven + mpfr_slack + coeff_slack;
 +  double radius = 0.5 * rem_proven + mpfr_slack + coeff_slack;
    // Compile-time gated falsifiability hook; an inline 1.0 in production
