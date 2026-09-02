@@ -510,6 +510,76 @@ changing.
 - The sub-t0 path never carried the assumption. D8 has no safety factor
   anywhere; as of rev 7 neither does any other part of theta.
 
+## Stage 4 rev 7 Part B (soundness)
+
+Every finding closes on executable evidence; the battery of record and the
+clean-clone figures are at commit c1d2c5f, and the only commit after it
+touches records alone (rule A12).
+
+- A11 CLOSED. tools/audit_mutation_residue.py, self-test with four controls
+  (positive: 951bfd9 must be flagged; negative: the revert 15bd11f and the
+  pre-corpus stage 3 gate b87b583 must not be), CI leg
+  mutation-residue-audit. Its pure-deletion rule was repaired mid-revision
+  after the verification pass broke it both ways (false positive on four
+  stage 3 commits, false negative on an applied deletion); both failure modes
+  are now controls.
+- A12 CLOSED. Rule in ATTACKS.md; exercised by this very record commit.
+- B1 CLOSED. The pair a = (raw 2^119, err 2^126) x b = (raw 2^8, err 2^126):
+  pre-fix composed err = 1 raw unit against an exact policy composition of
+  2^215 + 2^129 + 1 (~5.3e64), a 215-binary-order understatement; regression
+  pins the pair in test_ffix; rows 24 and 25 both DETECTED in the battery of
+  record; DECISIONS.md carries both printed values; MATHS.md D10 is the
+  policy (saturated = poison marker with Ball-infinite-radius semantics; the
+  clamp value is NOT a bound, proven by exhibition; step-capping equals
+  end-capping; no certified path reaches Ffix, structurally).
+- B2 CLOSED, and O1 WITH IT. MATHS.md D1b: the series remainder reduces
+  EXACTLY to Hermite's expansion of log Gamma(z + 1/2) at arg z = pi/2
+  (duplication + reflection + Schwarz), where Nemes (2013b) Theorem 4 gives
+  |E(t)| <= c7/t^13 + (3617/7650)/t^15 + (1/2)e^(-pi t) for every t > 0:
+  proven, cited, and 3.99x TIGHTER than the retired factor-4 policy. The
+  confirmer's 1.000115 and review A3's 1.0000000175 are corollaries
+  (1 + c8/(c7 t^2) and 1 + c9/(c7 t^4)). tools/confirm_theta_remainder.py
+  verifies the identities to 1e-258 and E/bound < 1 across the grid to 3e12,
+  in CI. D9's conditional column collapsed: theta, zeta_em and Z are
+  certified UNCONDITIONALLY on their whole accepted ranges.
+- B2 VERIFICATION REPAIR. The adversarial pass found the double EVALUATION of
+  the proven bound failing silently at range: pow(t,13) overflow at
+  t ~ 5.15e23 (inherited from the factor-4 code) and ldexp slack underflow at
+  prec >= 1077, jointly a false certificate at (6e23, 1100). Repaired by
+  exponent arithmetic and direct-scaling slacks (D1b.8), pinned by the L3
+  sweep extended to t = 1e300 and prec = 2048.
+- B3 CLOSED. L-D's band was (0.99, 1.01) over a measured exact agreement of
+  ratio - 1 = 0.0 at all 40 combos: it could not fail on any sub-percent
+  transcription drift. Replaced with |ratio - 1| <= 1e-12; row 26
+  (pre-registered 428f2a4, implemented f2e2844) DETECTED in the battery of
+  record.
+- B4 CLOSED. MATHS.md D7c, cited from cball.hpp: per-component enclosure
+  proven termwise, attainment at a corner (what lets C2's cut falsify it),
+  and the 1.44x shared-term overstatement recorded as the motivation.
+- B5 MET. Rows 25 and 26 pre-registered at 428f2a4; implementing code at
+  18d3d56 (B1) and f2e2844 (B3). Expected cells untouched since 428f2a4.
+- B6 DONE. Annotated tags v0.2-kernel and v0.3-theta at 665f94c, messages the
+  release-note files verbatim (--cleanup=verbatim; git appends one terminal
+  newline to any tag message). The notes' "no tag exists" paragraph was moved
+  to the past tense first, in its own commit, so the tag objects carry no
+  false statement; v0.3's O1 paragraph gained a snapshot marker naming the
+  rev 7 closure.
+
+DETERMINISM_HASH changed at this revision, by design: the hash covers
+theta_certified radii and B2 changed the radius policy. At c1d2c5f all three
+local configurations agree on 6dafe55d51198c31 (was 2cd01e86b40de75d through
+Part A); the contract is cross-configuration identity at a commit, which CI
+re-checks on Linux.
+
+Incidents this revision, recorded rather than buried: a stale mutated ffix
+binary produced a false red, and a `git checkout --` during row verification
+destroyed uncommitted work and confounded a row-10 measurement (the "exit 1"
+was a failed build); both caught before any commit, both of the class the
+clean-build battery discipline exists for. The adversarial verification pass
+(five independent verifiers, 35 findings, every load-bearing D1b claim
+independently recomputed at 420 digits) is recorded in the Decisions log with
+its blockers and repairs.
+
 ## Stage 4 rev 7 Part A (make rev 6 reviewable)
 
 Rev 6 was never reviewable. origin/main was c243090 and stage4-rev6 existed
@@ -590,11 +660,11 @@ section records only what Part A established.
 
 ## Next action
 
-Rev 7 Part A was gated ("approved, gated at 956bb12"). Part B is in progress
-on this branch: A11, A12, the row 25/26 pre-registration, B1, B2, B3, B4 and
-the adversarial verification repairs are committed; the battery of record at
-the Part B tip, the B6 tags, and the final record commit remain, after which
-this section carries the gate stop.
+Rev 7 Part B complete: A11, A12, B1 to B6, the adversarial verification
+repairs, the battery of record (rows=26 detect=24 null=2 fail=0 at c1d2c5f)
+and the tags are all committed and pushed. Stage 4 (split row 4, EM path) is
+"awaiting review" with no unproven constant anywhere in theta and every
+finding closed on executable evidence.
 
-Stage 4b has not begun and must not begin without the literal reply
-"approved, continue".
+STOPPED FOR THE GATE. Stage 4b has not begun and must not begin without the
+literal reply "approved, continue".
