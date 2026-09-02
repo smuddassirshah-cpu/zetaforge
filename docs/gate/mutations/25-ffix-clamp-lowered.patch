@@ -1,5 +1,5 @@
 diff --git a/core/include/zetaforge/ffix.hpp b/core/include/zetaforge/ffix.hpp
-index 3ca6a80..d01a38c 100644
+index 2cd0c68..7ce6ff7 100644
 --- a/core/include/zetaforge/ffix.hpp
 +++ b/core/include/zetaforge/ffix.hpp
 @@ -177,7 +177,7 @@ class Ffix {
@@ -9,5 +9,5 @@ index 3ca6a80..d01a38c 100644
 -  static constexpr u128 kErrMax = (((u128)1) << 127) - 1;
 +  static constexpr u128 kErrMax = (((u128)1) << 64) - 1;  /* clamp lowered: ATTACKS.md row 25 */
  
-   static u128 to_u(raw_t v) { return v < 0 ? 0 : (u128)v; }
- 
+   // A negative err_ cannot exist (from_raw refuses it; every producer clamps
+   // at kErrMax), so this maps corruption, not input. Corruption becomes the

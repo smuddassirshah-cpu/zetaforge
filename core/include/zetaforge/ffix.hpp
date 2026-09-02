@@ -179,7 +179,11 @@ class Ffix {
   // ceiling for the whole error path; see err_saturated().
   static constexpr u128 kErrMax = (((u128)1) << 127) - 1;
 
-  static u128 to_u(raw_t v) { return v < 0 ? 0 : (u128)v; }
+  // A negative err_ cannot exist (from_raw refuses it; every producer clamps
+  // at kErrMax), so this maps corruption, not input. Corruption becomes the
+  // POISON MARKER, never a zero bound: mapping it to 0 would be the silent
+  // under-report this file's decision note condemns (rev 7 verification).
+  static u128 to_u(raw_t v) { return v < 0 ? kErrMax : (u128)v; }
 
   static u128 sat_add(u128 a, u128 b) {
     const u128 s = a + b;          // unsigned: wrap is defined, and detectable
@@ -202,11 +206,14 @@ class Ffix {
   }
 
   // Promote an existing error count to whole-word granularity against a
-  // magnitude: conservative, monotone, never smaller than the input.
+  // magnitude: monotone by construction, since words + 1 >= 1 and sat_mul
+  // saturates high. The defensive 'scaled > units ? scaled : units' ternary
+  // that stood here was DEAD in the fixed code and was the exact shape of
+  // the pre-fix fallback that made the B1 wrap silent; removed at rev 7 so
+  // the shape cannot be copied back into a live path (verification finding).
   static u128 inflate_err(u128 units, u128 magnitude) {
     const u128 words = (magnitude >> 32) + 1;
-    const u128 scaled = sat_mul(units, words + 1);
-    return scaled > units ? scaled : units;
+    return sat_mul(units, words + 1);
   }
 
   raw_t raw_;

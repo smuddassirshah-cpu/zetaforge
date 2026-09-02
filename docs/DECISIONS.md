@@ -150,22 +150,34 @@ interviewer's first follow-up is always "compared to what?".
   was not a test of its own transcription (the row-10 lesson, unapplied). The
   band is now |ratio - 1| <= 1e-12, matched to the measured agreement with
   four orders of headroom, and ATTACKS.md row 26 (pre-registered at 428f2a4,
-  before this change) perturbs the transcription by 1e-4 and is detected,
-  measured exit 1 at every combo. The production side was already covered by
+  before this change) perturbs the transcription by 1e-4 and is detected:
+  exit 1 flagging every combo in the development-time clean-clone battery.
+  The ledger's measured column is filled only by the battery of record at the
+  Part B tip, which is why the row read TO BE MEASURED while this entry
+  already existed. The production side was already covered by
   row 16; the test side was covered by nothing until this row.
 - 2026-09-01 (stage 4 rev 7, B1). The rev 6 Ffix error-composition overflow is
   promoted from a deviation note to a finding with the R6-1 treatment. The
   concrete pair: a = (raw 2^119, err 2^126) times b = (raw 2^8, err 2^126).
   Pre-fix (commit fca734c, composition in signed __int128, observed wrap
   reproduced under -fwrapv): composed err = 1 raw unit. Exact policy
-  composition: 2^213 + 2^127 + 2^126 + 1 = 52656145834278593348959014522399950
-  001324474627023770490691911681 raw units (~5.3e64). Post-fix policy:
+  composition: 2^215 + 2^129 + 1 = 52656145834278593348959014522399950
+  001324474627023770490691911681 raw units (~5.3e64). (CORRECTED at rev 7 by
+  the verification pass: this entry first wrote the power expression as
+  2^213 + 2^127 + 2^126 + 1, which is a different number; the decimal was
+  right and the powers were wrong, dropping the cross terms. The commit
+  message of 18d3d56 carries the wrong expression and is immutable; this
+  entry is the record.) Post-fix policy:
   min(exact, kErrMax) = 2^127 - 1 = 170141183460469231731687303715884105727,
-  saturated marker. The tracked bound therefore wrapped 149 binary orders of
+  saturated marker. The tracked bound therefore wrapped 215 binary orders of
   magnitude BELOW the truth, on admissible inputs, in one multiplication.
-  Regression: test_ffix pins this exact pair (err_saturated AND err == kErrMax)
-  and fails verbatim on the pre-fix code; the equality `claimed == min(exact,
-  cap)` reads FAILS there. Mutation rows: 24 (wrap restored) and 25 (clamp
+  Regression: test_ffix pins this exact pair (err_saturated AND err ==
+  kErrMax). The pre-fix header cannot compile the modern suite (fca734c's
+  Ffix has no err_saturated()), so "fails on the pre-fix code" means: the
+  demonstration harness against the fca734c header yields err = 1 for the
+  pair, and the equality `claimed == min(exact, cap)` evaluated on that
+  output reads FAILS; a verbatim run of today's test there is a compile
+  error, which is itself a failure but not the interesting one. Mutation rows: 24 (wrap restored) and 25 (clamp
   lowered to 2^64 - 1, pre-registered at rev 7 before this entry's code).
   Policy of record: MATHS.md D10, which answers what a saturated bound
   denotes, proves by exhibition that the clamp value is not an upper bound,
